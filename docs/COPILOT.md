@@ -1,16 +1,37 @@
-# Contexto del Proyecto: Page2Screen
+## ¿De qué trata tu app?
+Page2Screen es una web app que conecta **libros y películas**. El usuario explora un catálogo, guarda obras (leídas/vistas o pendientes), escribe reseñas opcionales y recibe **recomendaciones cruzadas**: si vio una película, se le sugiere un libro afín (y al revés), con una razón temática clara (“una historia lleva a otra”).
 
-- **¿De qué trata tu app?**
-  Es una plataforma web de recomendación cruzada entre literatura y cine. Los usuarios pueden registrar los libros que leen y las películas que ven. La función principal es un "puente" de recomendaciones: la app sugiere películas basadas en los libros leídos, y viceversa, usando géneros y temas afines.
+Stack: React + TypeScript + Vite + Tailwind + React Router. Datos de TMDB (cine) y Google Books / catálogo curado (libros).
 
-- **¿Quién es tu usuario?**
-  Ávidos lectores y cinéfilos (18-35 años) que buscan llevar un registro visual de sus obras consumidas (tracker) y descubrir nuevas historias en formatos diferentes al que acaban de consumir.
+## ¿Quién es tu usuario?
+Lectores y cinéfilos de **18–35 años** que:
+- quieren un tracker visual de lo que consumen;
+- descubren obras en el “otro” formato;
+- valoran diseño limpio, tipografía legible y portadas reales.
 
-- **¿Qué personalidad quieres transmitir a través del diseño?**
-  Moderna, inmersiva, cultural y limpia. El diseño debe sentirse como una biblioteca premium o una sala de cine elegante ("de la página a la pantalla"), sin distracciones, dando todo el protagonismo a las portadas y pósters.
+Pantalla objetivo de esta mejora: **Work Detail** (ficha de libro/película).
 
-- **Paleta de colores (Modo Oscuro Principal):**
-    1. Fondo Principal: `#0E1117` (Negro azulado profundo)
-    2. Acento Libros: `#F0B44C` (Ámbar/Dorado)
-    3. Acento Películas: `#9B8CFF` (Violeta vibrante)
-    4. Texto/Superficies: `#F2F1EC` (Blanco hueso para contraste accesible)
+## ¿Qué personalidad quieres transmitir?
+Editorial y cultural: como una **librería-cine boutique**.
+- Sereno, confiable, con mucho aire.
+- Brand **Page2Screen** visible.
+- Portadas como protagonistas; texto con jerarquía clara (serif en títulos, mono en meta/UI).
+- Sin ruido visual (sin glow, sin cards innecesarias, sin purple genérico).
+
+## Paleta de colores (4 HEX)
+1. **Papel / fondo:** `#F2F0E9`
+2. **Tinta / texto y acento principal:** `#1C1C1C`
+3. **Texto secundario / meta:** `#6B6B6B`
+4. **Línea / bordes suaves:** `#D0CBC0`
+
+Complementos (no cuentan como los 4 principales): superficie `#F7F5F0`, error `#B42318`.
+
+## Tipografía
+- Títulos: Libre Baskerville (serif)
+- UI / labels / cuerpo auxiliar: IBM Plex Mono
+
+## Notas para Copilot
+- Conservar funcionalidad (navegación, reseñas, bridge cruzado, sesiones).
+- Mobile-first y accesible (contraste, foco, tipografía legible).
+- Reutilizar componentes existentes (`Header`, `WorkCard`, `StarRating`, `CrossSuggestionBox`).
+- No borrar código fundamental ni romper rutas `/obra/:tipo/:id`.
