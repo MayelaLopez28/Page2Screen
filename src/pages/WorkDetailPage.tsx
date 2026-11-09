@@ -194,7 +194,11 @@ export default function WorkDetailPage() {
   }, [detail?.average]);
 
   if (loading) {
-    return <div className="py-20 text-center label-mono text-[var(--text-secondary)]">Cargando...</div>;
+    return (
+      <div className="py-20 text-center label-mono text-[var(--text-secondary)]" role="status">
+        Cargando...
+      </div>
+    );
   }
 
   if (!detail) {
@@ -247,7 +251,10 @@ export default function WorkDetailPage() {
 
   return (
     <div className="animate-in fade-in pb-16">
-      <nav className="label-mono text-[var(--text-secondary)] mb-8">
+      <nav
+        aria-label="Migas de pan"
+        className="label-mono text-[var(--text-secondary)] mb-8 sm:mb-10"
+      >
         <Link to="/" className="hover:text-[var(--text-primary)]">
           Catálogo
         </Link>
@@ -257,8 +264,8 @@ export default function WorkDetailPage() {
         <span className="text-[var(--text-primary)]">{detail.title}</span>
       </nav>
 
-      <div className="grid lg:grid-cols-[minmax(240px,340px)_1fr] gap-10 lg:gap-16 items-start">
-        <div className="aspect-[3/4] w-full max-w-sm mx-auto lg:mx-0 bg-[var(--bg-chip)] cover-spine overflow-hidden">
+      <div className="grid lg:grid-cols-[minmax(240px,300px)_minmax(0,760px)] gap-5 sm:gap-10 lg:gap-x-20 items-start justify-center">
+        <div className="aspect-[3/4] w-full max-w-[160px] sm:max-w-sm mx-auto lg:mx-0 bg-[var(--bg-chip)] cover-spine overflow-hidden">
           <CoverImage
             src={detail.coverUrl}
             title={detail.title}
@@ -269,28 +276,36 @@ export default function WorkDetailPage() {
           />
         </div>
 
-        <div>
-          <p className="label-mono text-[var(--text-secondary)] mb-3">
-            {genreLabel} · {formatYear(detail.year)}
-          </p>
-          <h1 className="font-heading text-4xl md:text-5xl leading-tight mb-2">{detail.title}</h1>
-          <p className="font-heading italic text-xl text-[var(--text-secondary)] mb-8">
-            de {detail.creator}
-          </p>
+        <div className="min-w-0">
+          <div className="border-b border-[var(--border-color)] pb-4 sm:pb-8">
+            <p className="label-mono text-[var(--text-secondary)] opacity-75 mb-2">
+              {genreLabel} · {formatYear(detail.year)}
+            </p>
+            <h1 className="font-heading font-bold text-3xl sm:text-4xl lg:text-5xl leading-[1.1] tracking-tight mb-2">
+              {detail.title}
+            </h1>
+            <p className="font-heading italic text-base sm:text-xl text-[var(--text-secondary)]">
+              de {detail.creator}
+            </p>
+          </div>
 
-          <div className="flex items-start gap-6 mb-8">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-5 sm:gap-10 py-5 sm:py-6 border-b border-[var(--border-color)]">
             <div>
-              <p className="font-heading text-4xl tabular-nums">{detail.average}</p>
+              <p className="font-heading text-4xl tabular-nums leading-none">{detail.average}</p>
               <StarRating value={parseFloat(detail.average)} readonly size={16} />
-              <p className="label-mono text-[var(--text-secondary)] mt-1">
+              <p className="label-mono text-[var(--text-secondary)] mt-2">
                 {opinions.length || 0} reseñas
               </p>
             </div>
-            <div className="flex-1 space-y-1.5 max-w-xs">
+            <div className="space-y-2 max-w-[230px]" aria-label="Distribución de calificaciones">
               {ratingBars.map((bar) => (
                 <div key={bar.star} className="flex items-center gap-2 text-xs font-mono">
                   <span className="w-8 text-[var(--text-secondary)]">{bar.star} ★</span>
-                  <div className="flex-1 h-2 bg-[var(--bg-chip)] overflow-hidden">
+                  <div
+                    className="flex-1 h-2 bg-[var(--bg-chip)] overflow-hidden"
+                    role="img"
+                    aria-label={`${bar.count} valoraciones de ${bar.star} estrellas`}
+                  >
                     <div
                       className="h-full bg-[var(--text-primary)]"
                       style={{ width: `${(bar.count / maxBar) * 100}%` }}
@@ -302,13 +317,20 @@ export default function WorkDetailPage() {
             </div>
           </div>
 
-          <div className="font-mono text-sm leading-relaxed text-[var(--text-primary)] space-y-4 mb-8 max-w-2xl">
-            <p className="label-mono text-[var(--text-secondary)] mb-2">Sinopsis</p>
-            <p>{detail.synopsis}</p>
-          </div>
+          <section
+            aria-labelledby="synopsis-heading"
+            className="py-7 sm:py-9 max-w-2xl border-b border-[var(--border-color)]"
+          >
+            <h2 id="synopsis-heading" className="label-mono text-[var(--text-secondary)] mb-3">
+              Sinopsis
+            </h2>
+            <p className="font-mono text-sm sm:text-[0.95rem] leading-7 sm:leading-8 text-left text-[var(--text-primary)]">
+              {detail.synopsis}
+            </p>
+          </section>
 
           {recommendation && (
-            <div className="mb-8">
+            <div className="py-7 sm:py-9 border-b border-[var(--border-color)]">
               <CrossSuggestionBox
                 recommendation={recommendation}
                 alreadyInList={Boolean(
@@ -320,7 +342,7 @@ export default function WorkDetailPage() {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-3 mb-12">
+          <div className="flex flex-col sm:flex-row gap-3 py-7 sm:py-9">
             <button
               type="button"
               onClick={() =>
@@ -338,21 +360,30 @@ export default function WorkDetailPage() {
                   },
                 })
               }
-              className="btn-solid"
+              className="btn-solid w-full sm:w-auto min-h-11 px-5"
             >
               Escribir reseña
             </button>
             {!localWork ? (
-              <button type="button" onClick={handleQuickAdd} className="btn-outline">
+              <button
+                type="button"
+                onClick={handleQuickAdd}
+                className="btn-outline w-full sm:w-auto min-h-11 px-5"
+              >
                 Por {isBook ? 'leer' : 'ver'}
               </button>
             ) : (
-              <span className="btn-outline opacity-60 pointer-events-none">En tu lista</span>
+              <span className="btn-outline w-full sm:w-auto min-h-11 px-5 opacity-60 pointer-events-none">
+                En tu lista
+              </span>
             )}
           </div>
 
-          <section aria-labelledby="social-opinions" className="border-t border-[var(--border-color)] pt-8">
-            <h2 id="social-opinions" className="font-heading text-2xl mb-6">
+          <section
+            aria-labelledby="social-opinions"
+            className="border-t border-[var(--border-color)] pt-8 max-w-2xl"
+          >
+            <h2 id="social-opinions" className="font-heading text-3xl sm:text-4xl mb-7">
               Opiniones de tu círculo
             </h2>
             <OpinionList opinions={opinions} />
@@ -361,7 +392,10 @@ export default function WorkDetailPage() {
       </div>
 
       {showToast && (
-        <Toast message={toastMsg || `✓ ${detail.title} guardada`} onClose={() => setShowToast(false)} />
+        <Toast
+          message={toastMsg || `✓ ${detail.title} guardada`}
+          onClose={() => setShowToast(false)}
+        />
       )}
     </div>
   );
