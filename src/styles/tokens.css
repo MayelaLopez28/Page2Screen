@@ -1,0 +1,32 @@
+@theme {
+  --font-sans: "IBM Plex Mono", ui-monospace, monospace;
+  --font-heading: "Libre Baskerville", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-ink: #1c1c1c;
+  --color-muted: #6b6b6b;
+  --color-line: #d8d4cb;
+  --color-paper: #f2f0e9;
+  --color-paper-2: #eae7df;
+  --color-chip: #f7f5f0;
+  --color-star: #1c1c1c;
+  --color-error: #b42318;
+  --color-book: #1c1c1c;
+  --color-movie: #1c1c1c;
+}
+
+:root {
+  --bg-app: #f2f0e9;
+  --bg-surface: #f7f5f0;
+  --bg-surface-elevated: #ffffff;
+  --bg-chip: #ebe8e0;
+  --text-primary: #1c1c1c;
+  --text-secondary: #6b6b6b;
+  --border-color: #d0cbc0;
+  --accent: #1c1c1c;
+  --accent-soft: #3a3a3a;
+  --accent-warm: #8a5a00;
+  --semantic-book: #1c1c1c;
+  --semantic-movie: #1c1c1c;
+  --glow: transparent;
+}
