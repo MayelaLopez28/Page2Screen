@@ -3,17 +3,20 @@ import { mockWorks } from '../data/mock';
 import { dedupeById, matchesQuery } from '../utils/searchMatch';
 
 const TMDB_TOKEN = import.meta.env.VITE_TMDB_TOKEN as string | undefined;
-const BASE_URL = (import.meta.env.VITE_TMDB_PROXY as string | undefined) || 'https://api.themoviedb.org/3';
+const TMDB_PROXY = (import.meta.env.VITE_TMDB_PROXY as string | undefined)?.replace(/\/$/, '');
+const BASE_URL = TMDB_PROXY || 'https://api.themoviedb.org/3';
+const USE_PROXY = Boolean(TMDB_PROXY);
 
 const OPTIONS: RequestInit = {
   method: 'GET',
   headers: {
     accept: 'application/json',
-    ...(TMDB_TOKEN ? { Authorization: `Bearer ${TMDB_TOKEN}` } : {}),
+    // Con proxy el token vive solo en el servidor; no lo enviamos desde el navegador.
+    ...(!USE_PROXY && TMDB_TOKEN ? { Authorization: `Bearer ${TMDB_TOKEN}` } : {}),
   },
 };
 
-export const isTmdbMockMode = !TMDB_TOKEN && !import.meta.env.VITE_TMDB_PROXY;
+export const isTmdbMockMode = !TMDB_TOKEN && !USE_PROXY;
 
 function warnDemo(context: string) {
   console.warn(`[Page2Screen] Modo demostración TMDB (${context}): usando datos mock.`);
