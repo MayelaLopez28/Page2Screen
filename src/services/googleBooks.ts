@@ -251,33 +251,40 @@ export async function getBookDetails(id: string) {
   if (catalog) {
     if (hasApiKey()) {
       try {
-        const results = await fetchVolumes(`isbn:${catalog.isbn}`, 1);
         const url = `${BASE}/volumes?q=${encodeURIComponent(`isbn:${catalog.isbn}`)}&maxResults=1${apiKeyParam()}`;
         const res = await fetch(url);
 
-        if (res.ok) {
-          const data = await res.json();
-          const item = data.items?.[0] as GoogleVolume | undefined;
-          const info = item?.volumeInfo;
-
-          if (info) {
-            return {
-              title: catalog.title,
-              description: info.description || `Sinopsis de ${catalog.title}.`,
-              first_publish_date: catalog.year,
-              pageCount: info.pageCount,
-              covers: [] as number[],
-              subjects: info.categories || catalog.genres,
-              authors: [{ name: catalog.creator }],
-              coverUrl: catalog.coverUrl,
-              creator: catalog.creator,
-              averageRating: info.averageRating || catalog.rating,
-              ratingsCount: info.ratingsCount,
-            };
-          }
+        if (res.status === 429) {
+          throw new Error('Google Books rate limit');
         }
-        void results;
-      } catch {
+
+        if (!res.ok) {
+          throw new Error(`Google Books ${res.status}`);
+        }
+
+        const data = await res.json();
+        const item = data.items?.[0] as GoogleVolume | undefined;
+        const info = item?.volumeInfo;
+
+        if (info) {
+          return {
+            title: catalog.title,
+            description: info.description || `Sinopsis de ${catalog.title}.`,
+            first_publish_date: catalog.year,
+            pageCount: info.pageCount,
+            covers: [] as number[],
+            subjects: info.categories || catalog.genres,
+            authors: [{ name: catalog.creator }],
+            coverUrl: catalog.coverUrl,
+            creator: catalog.creator,
+            averageRating: info.averageRating || catalog.rating,
+            ratingsCount: info.ratingsCount,
+          };
+        }
+      } catch (error) {
+        // No silenciar: dejamos rastro y caemos al catálogo local de forma consciente.
+        console.error('[Page2Screen] getBookDetails (ISBN):', error);
+        warnDemo('detalle tras error de API');
       }
     }
 

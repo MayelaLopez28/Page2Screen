@@ -79,7 +79,7 @@ Usado en la ficha de detalle (`/obra/pelicula/:id`).
 - Requiere cuenta y **Read Access Token (v4)** en [themoviedb.org](https://www.themoviedb.org/settings/api).
 - Rate limit orientativo: ~40–50 req/s por IP; la app hace como máximo 2 búsquedas paralelas (es + en).
 - Imágenes: CDN `image.tmdb.org`; sin poster → fallback tipográfico en UI.
-- **Seguridad:** no conviene exponer el token en el cliente. Preferir `VITE_TMDB_PROXY` + función serverless (`api/tmdb.js`) con `TMDB_TOKEN` solo en el servidor.
+- **Seguridad:** no conviene exponer el token en el cliente. Preferir `VITE_TMDB_PROXY` + función serverless (`api/tmdb/[...path].js` en Vercel) con `TMDB_TOKEN` solo en el servidor.
 
 ### Manejo de errores (app)
 
@@ -179,6 +179,17 @@ La lógica de red está centralizada en `services/`; las páginas/hooks solo orq
 
 ---
 
-## 4. Variables de entorno relacionadas
+## 4. Variables de entorno
 
-Ver `.env.example` y la sección de despliegue en el `README.md`.
+| Variable | ¿Dónde? | Obligatoria | Para qué |
+|---|---|---|---|
+| `VITE_TMDB_TOKEN` | Cliente (Vite) | No, si usas proxy | Read Access Token TMDB v4. **Se publica en el JS del navegador** |
+| `VITE_TMDB_PROXY` | Cliente (Vite) | No | Base del proxy, p. ej. `/api/tmdb` |
+| `TMDB_TOKEN` | Solo servidor (Vercel) | Sí, si usas proxy | Token secreto para `api/tmdb/[...path].js`. **Sin** prefijo `VITE_` |
+| `VITE_GOOGLE_BOOKS_KEY` | Cliente (Vite) | No | API key de Google Books. Sin ella no se llama a `/volumes` |
+
+**Producción recomendada:** define solo `VITE_TMDB_PROXY=/api/tmdb` + `TMDB_TOKEN` en el servidor. **No definas `VITE_TMDB_TOKEN`** si usas proxy.
+
+En `src/services/tmdb.ts`, el Bearer solo se envía cuando hay token **y no** hay proxy (`USE_PROXY`). Si defines ambas variables a la vez, gana el proxy (no se manda Bearer desde el cliente). Si solo defines `VITE_TMDB_TOKEN` (sin proxy), el Bearer sí va en el navegador — eso es el riesgo documentado.
+
+Comportamiento sin claves: TMDB entra en modo demo (`isTmdbMockMode = !TMDB_TOKEN && !USE_PROXY`); Google Books usa solo el catálogo local.

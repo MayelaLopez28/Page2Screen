@@ -7,13 +7,11 @@ Plataforma web responsive que conecta **libros y películas**: tracker personal,
 
 ---
 
-## Integrantes
+## Participación (individual)
 
 | Integrante | Participación |
 |---|---|
 | Mayela López | Desarrollo de pantallas y servicios, integración de APIs, uso crítico de IA (bitácora), documentación y despliegue |
-
-> Trabajo individual. Si se entrega en equipo (máx. 2), completar esta tabla con el aporte de cada persona.
 
 ---
 
@@ -32,7 +30,7 @@ Plataforma web responsive que conecta **libros y películas**: tracker personal,
 ```bash
 npm install
 cp .env.example .env   # PowerShell: Copy-Item .env.example .env
-# Completa VITE_TMDB_TOKEN y/o VITE_GOOGLE_BOOKS_KEY
+# Completa las variables (ver tabla abajo)
 npm run dev
 ```
 
@@ -47,26 +45,25 @@ npm run dev
 
 ## Variables de entorno
 
-Ver `.env.example`. Resumen:
+| Variable | ¿Dónde? | Obligatoria | Descripción |
+|---|---|---|---|
+| `VITE_TMDB_TOKEN` | Cliente (Vite) | No, si usas proxy | Read Access Token TMDB v4. **Se embebe en el JS** |
+| `VITE_TMDB_PROXY` | Cliente (Vite) | No | Base del proxy, p. ej. `/api/tmdb` |
+| `TMDB_TOKEN` | Solo servidor (Vercel) | Sí, si usas proxy | Token secreto para `api/tmdb/[...path].js` (sin `VITE_`) |
+| `VITE_GOOGLE_BOOKS_KEY` | Cliente (Vite) | No | API key de Google Books |
 
-| Variable | Ámbito | Descripción |
-|---|---|---|
-| `VITE_TMDB_TOKEN` | Cliente (Vite) | Read Access Token TMDB v4. **Se embebe en el JS** |
-| `VITE_TMDB_PROXY` | Cliente | Base URL del proxy (ej. `/api/tmdb`). Preferible en producción |
-| `TMDB_TOKEN` | Solo servidor | Token real para `api/tmdb.js` (Vercel). Sin prefijo `VITE_` |
-| `VITE_GOOGLE_BOOKS_KEY` | Cliente | API key de Google Books |
-
+Plantilla: [`.env.example`](.env.example).  
 Sin claves, la app arranca en **modo demostración** (mock / catálogo local) y avisa por consola.
 
 ### Limitación conocida — seguridad del token
 
-Cualquier variable `VITE_*` es pública en el bundle. Para producción académica o real:
+Cualquier `VITE_*` es pública en el bundle. En producción:
 
-1. Configura `TMDB_TOKEN` en el panel de Vercel (Environment Variables).
-2. Despliega con la función `api/tmdb.js`.
-3. En el hosting define `VITE_TMDB_PROXY=/api/tmdb` y **no** expongas `VITE_TMDB_TOKEN`.
+1. Configura `TMDB_TOKEN` en el panel del hosting (no en el repo).
+2. Usa la función `api/tmdb/[...path].js`.
+3. Define `VITE_TMDB_PROXY=/api/tmdb` y **no** subas `VITE_TMDB_TOKEN` al hosting si ya usas proxy.
 
-Documentación detallada: [`docs/API.md`](docs/API.md).
+Detalle de endpoints: [`docs/API.md`](docs/API.md).
 
 ---
 
@@ -77,7 +74,7 @@ Documentación detallada: [`docs/API.md`](docs/API.md).
 | TMDB | `/search/movie`, `/trending/movie/week`, `/discover/movie`, `/movie/{id}` | [docs/API.md](docs/API.md) |
 | Google Books | `/volumes`, `/volumes/{id}` | [docs/API.md](docs/API.md) |
 
-Implementación: `fetch` + `async/await` + parseo JSON en `src/services/`.
+Implementación con `fetch` + `async/await` + JSON en `src/services/`.
 
 ---
 
@@ -85,27 +82,29 @@ Implementación: `fetch` + `async/await` + parseo JSON en `src/services/`.
 
 ### Vercel (recomendado)
 
-1. Importa el repo en [vercel.com](https://vercel.com).
-2. Framework preset: Vite. Build: `npm run build`. Output: `dist`.
-3. Variables de entorno en el proyecto:
-   - `TMDB_TOKEN` = token secreto (servidor)
+1. Importa el repo en [vercel.com](https://vercel.com) (rama con estos archivos, p. ej. `feature/pia-docs-deploy-api` o `main` tras merge).
+2. Framework: Vite · Build: `npm run build` · Output: `dist`.
+3. Variables en el panel de Vercel (no en Git):
+   - `TMDB_TOKEN` = token secreto
    - `VITE_TMDB_PROXY` = `/api/tmdb`
    - `VITE_GOOGLE_BOOKS_KEY` = key (opcional)
-4. `vercel.json` reescribe rutas SPA a `index.html` (evita 404 al recargar `/obra/...`) y enruta el proxy.
+4. `vercel.json` reescribe el SPA a `index.html` para que recargar `/obra/...` no dé 404.
 
 ### Netlify (alternativa)
 
 - Build: `npm run build` · Publish: `dist`
-- `public/_redirects` incluye `/* /index.html 200` para el SPA.
+- `public/_redirects` incluye `/* /index.html 200`
 
 ### Verificación post-deploy
 
 - [ ] Home / Explorar carga
-- [ ] Buscador devuelve películas (API real o mock consciente)
-- [ ] Recargar `/obra/pelicula/<id>` no da 404
-- [ ] Listas y perfil persisten en el navegador (`localStorage`)
+- [ ] Buscador con y sin resultados
+- [ ] Recargar `/obra/libro/...` y `/obra/pelicula/...` (sin 404)
+- [ ] Vista móvil
+- [ ] Token solo en el hosting, no en el repo
 
-**URL pública:** _(pegar aquí tras el deploy)_  
+**URL pública:** _(pendiente — pegar tras el deploy)_  
+**Capturas:** _(móvil + recarga de `/obra/...` — agregar al entregar)_  
 **Repositorio:** https://github.com/MayelaLopez28/Page2Screen
 
 ---
@@ -113,12 +112,10 @@ Implementación: `fetch` + `async/await` + parseo JSON en `src/services/`.
 ## Flujo de ramas (EV04)
 
 ```
-main
- └── feature/copilot-ui-work-detail   # mejora UI Work Detail
- └── feature/pia-docs-deploy-api      # docs PIA, env, hosting, proxy
+main                                 # línea principal (incluye docs PIA tras merge)
+ ├── feature/copilot-ui-work-detail  # 9a9c77e — mejora UI Work Detail
+ └── feature/pia-docs-deploy-api     # bitácora, API.md, README, .env.example, vercel, proxy, fix getBookDetails
 ```
-
-Commits descriptivos y PR hacia `main` (no un único commit “Cambios”).
 
 ---
 
@@ -127,7 +124,7 @@ Commits descriptivos y PR hacia `main` (no un único commit “Cambios”).
 | Entregable | Archivo |
 |---|---|
 | Bitácora de uso de IA | [`docs/BITACORA_IA.md`](docs/BITACORA_IA.md) |
-| Brief Copilot (contexto de diseño) | [`docs/COPILOT.md`](docs/COPILOT.md) |
+| Brief Copilot | [`docs/COPILOT.md`](docs/COPILOT.md) |
 | Documentación de APIs | [`docs/API.md`](docs/API.md) |
 | Variables de entorno | [`.env.example`](.env.example) |
 
@@ -137,12 +134,15 @@ Commits descriptivos y PR hacia `main` (no un único commit “Cambios”).
 
 ```
 src/
-  components/   # UI reutilizable
-  pages/        # pantallas / rutas
-  services/     # TMDB, Google Books, recommender
-  context/      # biblioteca + perfil (localStorage)
-  hooks/        # búsqueda, detalle, recomendaciones
+  components/          # UI reutilizable
+  pages/               # pantallas / rutas
+  services/            # TMDB, Google Books, recommender
+  context/             # biblioteca + perfil (localStorage)
+  hooks/               # búsqueda, detalle, recomendaciones
 api/
-  tmdb.js       # proxy serverless (Vercel)
-docs/           # bitácora, API, Copilot
+  tmdb/[...path].js    # proxy serverless TMDB (Vercel)
+docs/                  # bitácora, API, Copilot
+vercel.json            # rewrite SPA
+public/_redirects      # rewrite SPA (Netlify)
+.env.example           # plantilla de variables
 ```
