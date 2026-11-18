@@ -80,7 +80,7 @@ Un `tmdb.ts` con `fetch`, mapeo a `SearchResult` y `try/catch` que devolvía moc
   `isTmdbMockMode = !TMDB_TOKEN && !USE_PROXY`  
   y el Bearer solo si `!USE_PROXY && TMDB_TOKEN`.
 - Endpoints: `/search/movie`, `/trending/movie/week`, `/discover/movie`, `/movie/{id}?append_to_response=credits`.
-- Commit de referencia: el de esta entrega en `main` / `feature/pia-docs-deploy-api` (proxy + `USE_PROXY`).
+- Commits: `2c6f10a` (proxy + `USE_PROXY`) y `b358f0e` (docs alineados); ambos en `main`.
 
 ---
 
@@ -153,7 +153,7 @@ Google Books responde **HTTP 400** (“API key not valid”). El código del fix
 ```
 
 Evidencia en archivo: `src/services/googleBooks.ts` → `getBookDetails`.  
-Commit: el de esta entrega que incluye el fix (ver historial de `main` tras merge).
+Commit del fix: `b358f0e` — *fix: getBookDetails sin catch vacío y docs alineados al repo* (en `main`).
 
 ---
 
