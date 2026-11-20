@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Documentación personal / entregables fuera del repo público
+docs/
+
 # Logs
 logs
 *.log

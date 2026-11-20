@@ -63,16 +63,16 @@ Cualquier `VITE_*` es pública en el bundle. En producción:
 2. Usa la función `api/tmdb/[...path].js`.
 3. Define `VITE_TMDB_PROXY=/api/tmdb` y **no** subas `VITE_TMDB_TOKEN` al hosting si ya usas proxy.
 
-Detalle de endpoints: [`docs/API.md`](docs/API.md).
+Detalle de endpoints: ver documentación de API entregada por Teams (no está en este repo).
 
 ---
 
 ## APIs externas
 
-| Servicio | Endpoints principales | Doc |
-|---|---|---|
-| TMDB | `/search/movie`, `/trending/movie/week`, `/discover/movie`, `/movie/{id}` | [docs/API.md](docs/API.md) |
-| Google Books | `/volumes`, `/volumes/{id}` | [docs/API.md](docs/API.md) |
+| Servicio | Endpoints principales |
+|---|---|
+| TMDB | `/search/movie`, `/trending/movie/week`, `/discover/movie`, `/movie/{id}` |
+| Google Books | `/volumes`, `/volumes/{id}` |
 
 Implementación con `fetch` + `async/await` + JSON en `src/services/`.
 
@@ -121,12 +121,8 @@ main                                 # línea principal (incluye docs PIA tras m
 
 ## Documentación del PIA
 
-| Entregable | Archivo |
-|---|---|
-| Bitácora de uso de IA | [`docs/BITACORA_IA.md`](docs/BITACORA_IA.md) |
-| Brief Copilot | [`docs/COPILOT.md`](docs/COPILOT.md) |
-| Documentación de APIs | [`docs/API.md`](docs/API.md) |
-| Variables de entorno | [`.env.example`](.env.example) |
+Bitácora de IA, docs de API y brief de Copilot se entregan por **MS Teams** (carpeta local `docs/`, ignorada por Git).  
+Variables de entorno: [`.env.example`](.env.example).
 
 ---
 
@@ -141,7 +137,6 @@ src/
   hooks/               # búsqueda, detalle, recomendaciones
 api/
   tmdb/[...path].js    # proxy serverless TMDB (Vercel)
-docs/                  # bitácora, API, Copilot
 vercel.json            # rewrite SPA
 public/_redirects      # rewrite SPA (Netlify)
 .env.example           # plantilla de variables
