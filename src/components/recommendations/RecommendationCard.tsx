@@ -8,11 +8,33 @@ import { workPath } from '../../utils/routes';
 interface RecommendationCardProps {
   work: Work;
   reason: string;
+  source?: Pick<Work, 'id' | 'title' | 'coverUrl' | 'type' | 'creator'>;
 }
 
-export default function RecommendationCard({ work, reason }: RecommendationCardProps) {
+export default function RecommendationCard({ work, reason, source }: RecommendationCardProps) {
   return (
     <article className="flex flex-col h-full border border-[var(--border-color)] bg-[var(--bg-surface)]">
+      {source ? (
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border-color)] bg-[var(--bg-chip)]/40">
+          <div className="w-10 h-14 shrink-0 overflow-hidden bg-[var(--bg-chip)]">
+            <CoverImage
+              src={source.coverUrl}
+              title={source.title}
+              creator={source.creator || ''}
+              type={source.type}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="min-w-0">
+            <p className="label-mono text-[var(--text-secondary)] text-[0.65rem] mb-0.5">
+              Referencia
+            </p>
+            <p className="font-heading text-sm leading-snug truncate">{source.title}</p>
+          </div>
+        </div>
+      ) : null}
+
       <Link to={workPath(work.type, work.id)} className="group block">
         <div className="relative aspect-[3/4] overflow-hidden bg-[var(--bg-chip)] cover-spine">
           <CoverImage
@@ -27,6 +49,9 @@ export default function RecommendationCard({ work, reason }: RecommendationCardP
       </Link>
 
       <div className="p-4 flex flex-col gap-2 flex-1">
+        <p className="label-mono text-[var(--text-secondary)] text-[0.65rem]">
+          Te recomendamos
+        </p>
         <Link to={workPath(work.type, work.id)}>
           <h3 className="font-heading text-xl leading-snug">{work.title}</h3>
         </Link>

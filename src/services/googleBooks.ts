@@ -78,22 +78,45 @@ function isbnOf(item: GoogleVolume) {
   );
 }
 
+function isCatalogNoise(title: string, categories?: string[]) {
+  const t = title.toLowerCase();
+  if (
+    /philosophy of|encyclopedia|companion to|study guide|critical essays|film theory|reader'?s guide|annotated|box set|coloring book|movie storybook|qbd |omnibus|collection of essays/.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  const cats = (categories || []).join(' ').toLowerCase();
+  if (
+    /performing arts|literary criticism|philosophy|education|reference|study aids/.test(cats) &&
+    !/fiction/.test(cats)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function mapVolume(item: GoogleVolume): SearchResult | null {
   const info = item.volumeInfo;
   if (!info?.title) {
     return null;
   }
 
+  if (isCatalogNoise(info.title, info.categories)) {
+    return null;
+  }
+
   const isbn = isbnOf(item);
 
-  const cover =
-    (isbn ? `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg` : undefined) ||
-    upgradeCover(
-      info.imageLinks?.large ||
-        info.imageLinks?.medium ||
-        info.imageLinks?.thumbnail ||
-        info.imageLinks?.smallThumbnail,
-    );
+  // Solo portadas de Google. El fallback por ISBN en Open Library
+  // suele devolver 1×1 vacío o la portada de otro libro.
+  const cover = upgradeCover(
+    info.imageLinks?.large ||
+      info.imageLinks?.medium ||
+      info.imageLinks?.thumbnail ||
+      info.imageLinks?.smallThumbnail,
+  );
 
   if (!cover) {
     return null;
@@ -164,40 +187,66 @@ export async function searchBooks(query: string): Promise<SearchResult[]> {
 }
 
 export async function searchBooksBySubject(subject: string) {
-  const needle = subject.replace(/_/g, ' ').toLowerCase();
+  const needle = subject
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  const slug = needle.replace(/\s+/g, '_');
+
   const local = CATALOG_BOOKS.filter((b) =>
-    (b.genres || []).some((g) => g.includes(needle.replace(/\s+/g, '_')) || needle.includes(g)),
+    (b.genres || []).some((g) => {
+      const token = g.toLowerCase();
+      return (
+        token === slug ||
+        token.includes(slug) ||
+        slug.includes(token) ||
+        needle.split(/\s+/).every((part) => token.includes(part))
+      );
+    }),
   );
 
+  const localMapped = local.map((b) => ({
+    key: b.id,
+    title: b.title,
+    authors: [{ name: b.creator }],
+    first_publish_year: Number(b.year) || undefined,
+    cover_id: undefined as number | undefined,
+    coverUrl: b.coverUrl,
+    genres: b.genres || [slug],
+  }));
+
   try {
+    // Pocas remotas: el catálogo local ya cubre portadas fiables.
     const remote = hasApiKey()
-      ? await fetchVolumes(`subject:${subject.replace(/_/g, ' ')}`, 10)
+      ? await fetchVolumes(`subject:${subject.replace(/_/g, ' ')}`, 8)
       : [];
-    const merged = dedupeById([...local.map(toSearchResult), ...remote]);
-    return merged.map((r) => ({
-      key: `/works/${r.id.replace(/^b_(isbn_|gb_)?/, '')}`,
-      title: r.title,
-      authors: [{ name: r.creator }],
-      first_publish_year: Number(r.year) || undefined,
-      cover_id: undefined as number | undefined,
-      coverUrl: r.coverUrl,
-    }));
+    const remoteMapped = remote
+      .filter((r) => Boolean(r.coverUrl?.includes('books.google.com')))
+      .slice(0, 6)
+      .map((r) => ({
+        key: r.id.startsWith('b_') ? r.id : `/works/${r.id}`,
+        title: r.title,
+        authors: [{ name: r.creator }],
+        first_publish_year: Number(r.year) || undefined,
+        cover_id: undefined as number | undefined,
+        coverUrl: r.coverUrl,
+        genres: r.genres || [slug],
+      }));
+
+    const seen = new Set(localMapped.map((b) => b.title.toLowerCase()));
+    const extras = remoteMapped.filter((b) => !seen.has(b.title.toLowerCase()));
+    return [...localMapped, ...extras];
   } catch (error) {
     console.error(error);
     warnDemo('subjects');
-    return local.map((b) => ({
-      key: `/works/${b.id.replace(/^b_/, '')}`,
-      title: b.title,
-      authors: [{ name: b.creator }],
-      first_publish_year: Number(b.year) || undefined,
-      cover_id: undefined as number | undefined,
-      coverUrl: b.coverUrl,
-    }));
+    return localMapped;
   }
 }
 
 export async function getTrendingBooks() {
-  const base = CATALOG_BOOKS.map((b) => ({
+  // Primero el catálogo popular (Twilight, Hunger Games, Fourth Wing…) — solo con portada
+  const base = CATALOG_BOOKS.filter((b) => Boolean(b.coverUrl)).map((b) => ({
     id: b.id,
     title: b.title,
     creator: b.creator,
@@ -211,33 +260,34 @@ export async function getTrendingBooks() {
 
   if (hasApiKey()) {
     try {
-      const extra = await fetchVolumes('subject:fiction', 8);
+      const queries = ['subject:young adult fiction', 'subject:fantasy', 'Twilight Meyer'];
       const known = new Set(base.map((b) => b.title.toLowerCase()));
-      for (const book of extra) {
-        if (known.has(book.title.toLowerCase())) continue;
-        base.push({
-          id: book.id,
-          title: book.title,
-          creator: book.creator,
-          year: book.year,
-          coverUrl: book.coverUrl!,
-          genres: book.genres || ['fiction'],
-          rating: 4.2,
-          author_name: [book.creator],
-          key: book.id.replace(/^b_/, ''),
-        });
-        known.add(book.title.toLowerCase());
-
-        if (base.length >= 24) {
-          break;
+      for (const q of queries) {
+        const extra = await fetchVolumes(q, 6);
+        for (const book of extra) {
+          if (!book.coverUrl || known.has(book.title.toLowerCase())) continue;
+          base.push({
+            id: book.id,
+            title: book.title,
+            creator: book.creator,
+            year: book.year,
+            coverUrl: book.coverUrl,
+            genres: book.genres || ['fiction'],
+            rating: 4.2,
+            author_name: [book.creator],
+            key: book.id.replace(/^b_/, ''),
+          });
+          known.add(book.title.toLowerCase());
+          if (base.length >= 24) break;
         }
+        if (base.length >= 24) break;
       }
     } catch (error) {
       console.error(error);
     }
   }
 
-  return base;
+  return base.filter((b) => Boolean(b.coverUrl)).slice(0, 24);
 }
 
 function cleanBookId(id: string) {
@@ -267,9 +317,16 @@ export async function getBookDetails(id: string) {
         const info = item?.volumeInfo;
 
         if (info) {
+          const apiDescription =
+            typeof info.description === 'string' ? info.description.replace(/<[^>]+>/g, ' ') : '';
+          const description =
+            catalog.synopsis ||
+            apiDescription ||
+            `Sinopsis de ${catalog.title}, de ${catalog.creator}.`;
+
           return {
             title: catalog.title,
-            description: info.description || `Sinopsis de ${catalog.title}.`,
+            description,
             first_publish_date: catalog.year,
             pageCount: info.pageCount,
             covers: [] as number[],
@@ -282,7 +339,6 @@ export async function getBookDetails(id: string) {
           };
         }
       } catch (error) {
-        // No silenciar: dejamos rastro y caemos al catálogo local de forma consciente.
         console.error('[Page2Screen] getBookDetails (ISBN):', error);
         warnDemo('detalle tras error de API');
       }
@@ -290,7 +346,9 @@ export async function getBookDetails(id: string) {
 
     return {
       title: catalog.title,
-      description: `${catalog.title}, de ${catalog.creator}. Obra destacada del catálogo Page2Screen.`,
+      description:
+        catalog.synopsis ||
+        `${catalog.title}, de ${catalog.creator}. Obra destacada del catálogo Page2Screen.`,
       first_publish_date: catalog.year,
       covers: [] as number[],
       subjects: catalog.genres,

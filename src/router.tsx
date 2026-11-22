@@ -5,6 +5,7 @@ import ListsPage from './pages/ListsPage';
 import WorkDetailPage from './pages/WorkDetailPage';
 import AddWorkPage from './pages/AddWorkPage';
 import ProfilePage from './pages/ProfilePage';
+import LoginPage from './pages/LoginPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export const router = createBrowserRouter([
@@ -18,6 +19,7 @@ export const router = createBrowserRouter([
       { path: 'obra/:tipo/:id', element: <WorkDetailPage /> },
       { path: 'anadir', element: <AddWorkPage /> },
       { path: 'perfil', element: <ProfilePage /> },
+      { path: 'entrar', element: <LoginPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

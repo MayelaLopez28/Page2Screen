@@ -1,12 +1,16 @@
 import { Link, useLocation } from 'react-router-dom';
 import { SearchBox } from '../search/SearchBox';
+import { useLibrary } from '../../context/LibraryContext';
 
 export default function Header() {
   const { pathname } = useLocation();
+  const { isLoggedIn } = useLibrary();
 
   const navClass = (active: boolean) =>
-    `label-mono transition-opacity ${
-      active ? 'opacity-100 underline underline-offset-4' : 'opacity-60 hover:opacity-100'
+    `label-mono transition-colors ${
+      active
+        ? 'text-[var(--text-primary)] underline underline-offset-4'
+        : 'text-[#4f4f4f] hover:text-[var(--text-primary)]'
     }`;
 
   return (
@@ -19,17 +23,17 @@ export default function Header() {
             </span>
           </Link>
 
-          <div className="flex-1 max-w-md">
+          <div className="flex-1 max-w-md lg:max-w-xl xl:max-w-2xl">
             <p className="label-mono text-[var(--text-secondary)] mb-1">Buscar</p>
             <SearchBox variant="default" />
           </div>
         </div>
 
-        <nav className="flex items-center gap-4 sm:gap-5 shrink-0" aria-label="Navegación principal">
+        <nav className="flex items-center gap-4 sm:gap-5 shrink-0 flex-wrap" aria-label="Navegación principal">
           <Link
             to="/"
-            className={navClass(pathname === '/')}
-            aria-current={pathname === '/' ? 'page' : undefined}
+            className={navClass(pathname === '/' || pathname === '/explorar')}
+            aria-current={pathname === '/' || pathname === '/explorar' ? 'page' : undefined}
           >
             Catálogo
           </Link>
@@ -38,11 +42,21 @@ export default function Header() {
             className={navClass(pathname === '/listas')}
             aria-current={pathname === '/listas' ? 'page' : undefined}
           >
-            Mis reseñas
+            Mis listas
           </Link>
-          <Link to="/perfil" className="btn-outline">
-            Entrar
-          </Link>
+          {isLoggedIn ? (
+            <Link
+              to="/perfil"
+              className={navClass(pathname === '/perfil')}
+              aria-current={pathname === '/perfil' ? 'page' : undefined}
+            >
+              Perfil
+            </Link>
+          ) : (
+            <Link to="/entrar" className="btn-outline">
+              Entrar
+            </Link>
+          )}
         </nav>
       </div>
     </header>

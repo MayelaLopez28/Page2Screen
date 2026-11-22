@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useLibrary } from '../context/LibraryContext';
 import WorkCard from '../components/works/WorkCard';
 import Toast from '../components/feedback/Toast';
+import CrossBridge from '../components/recommendations/CrossBridge';
+import CoverImage from '../components/works/CoverImage';
+import StarRating from '../components/forms/StarRating';
 import { decodeProfileCode, generateProfileCode } from '../utils/profileCode';
 import { sampleAccountToFriend, SAMPLE_ACCOUNTS } from '../data/sampleUsers';
-import type { Friend, WorkType } from '../types';
+import { formatRegisteredDate } from '../utils/format';
+import { workPath } from '../utils/routes';
+import type { Friend, Work, WorkType } from '../types';
 
-type Tab = 'books' | 'movies' | 'dnf' | 'friends';
+type Tab = 'history' | 'books' | 'movies' | 'dnf' | 'friends';
 
 export default function ProfilePage() {
   const {
@@ -19,17 +25,19 @@ export default function ProfilePage() {
     accounts,
     currentUserId,
     friendSuggestions,
+    isLoggedIn,
     setProfileName,
     setProfileHandle,
     setProfileBio,
     addFriend,
     removeFriend,
     addSuggestedFriend,
-    createUser,
-    switchUser,
+    logout,
   } = useLibrary();
+  const navigate = useNavigate();
 
-  const [tab, setTab] = useState<Tab>('friends');
+  const [tab, setTab] = useState<Tab>('history');
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   const [friendQuery, setFriendQuery] = useState('');
   const [toastMsg, setToastMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -37,11 +45,6 @@ export default function ProfilePage() {
   const [tempName, setTempName] = useState(profileName);
   const [tempHandle, setTempHandle] = useState(profileHandle);
   const [tempBio, setTempBio] = useState(profileBio);
-
-  const [showNewUser, setShowNewUser] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newHandle, setNewHandle] = useState('');
-  const [newBio, setNewBio] = useState('');
 
   useEffect(() => {
     setTempName(profileName);
@@ -54,6 +57,13 @@ export default function ProfilePage() {
   const booksDone = works.filter((w) => w.type === 'book' && w.status === 'done');
   const moviesDone = works.filter((w) => w.type === 'movie' && w.status === 'done');
   const dnf = works.filter((w) => w.status === 'dnf');
+  const historyWorks = useMemo(() => {
+    return [...booksDone, ...moviesDone].sort(
+      (a, b) => (b.addedAt || 0) - (a.addedAt || 0),
+    );
+  }, [booksDone, moviesDone]);
+  const selectedHistory: Work | null =
+    historyWorks.find((w) => w.id === selectedHistoryId) || null;
 
   const initials = profileName
     .split(' ')
@@ -64,7 +74,12 @@ export default function ProfilePage() {
 
   const code = useMemo(() => generateProfileCode(profileName, works), [profileName, works]);
 
+  if (!isLoggedIn) {
+    return <Navigate to="/entrar" replace />;
+  }
+
   const tabs: { id: Tab; label: string }[] = [
+    { id: 'history', label: 'Historial' },
     { id: 'books', label: 'Libros leídos' },
     { id: 'movies', label: 'Películas vistas' },
     { id: 'dnf', label: 'Lo dejé (DNF)' },
@@ -166,89 +181,20 @@ export default function ProfilePage() {
     }
   };
 
-  const handleCreateUser = (e: FormEvent) => {
-    e.preventDefault();
-
-    if (newName.trim().length < 2) {
-      setErrorMsg('El nombre debe tener al menos 2 caracteres.');
-      return;
-    }
-
-    createUser(newName, newHandle, newBio);
-    setShowNewUser(false);
-    setNewName('');
-    setNewHandle('');
-    setNewBio('');
-    setTab('friends');
-    setToastMsg('Nueva sesión creada. Te sugerimos amigos para empezar.');
-  };
-
   return (
     <div className="animate-in fade-in pb-16">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-10">
-        <label className="sr-only" htmlFor="switch-user">
-          Cambiar de cuenta
-        </label>
-        <select
-          id="switch-user"
-          value={currentUserId}
-          onChange={(e) => {
-            switchUser(e.target.value);
-            setToastMsg('Sesión cambiada');
+      <div className="flex justify-end mb-6">
+        <button
+          type="button"
+          className="btn-outline"
+          onClick={() => {
+            logout();
+            navigate('/entrar');
           }}
-          className="h-11 px-3 bg-transparent border border-[var(--border-color)] text-sm font-mono outline-none flex-1 max-w-md"
         >
-          {accounts.map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.name} (@{account.handle})
-            </option>
-          ))}
-        </select>
-        <button type="button" onClick={() => setShowNewUser((v) => !v)} className="btn-outline">
-          Nueva sesión
+          Cerrar sesión
         </button>
       </div>
-
-      {showNewUser && (
-        <form
-          onSubmit={handleCreateUser}
-          className="mb-10 p-6 border border-[var(--border-color)] bg-[var(--bg-surface)] space-y-4"
-        >
-          <h2 className="font-heading text-2xl">Crear nuevo usuario</h2>
-          <p className="text-sm text-[var(--text-secondary)] font-mono">
-            Empieza una biblioteca limpia. Las cuentas ejemplo seguirán disponibles como sugerencias.
-          </p>
-          <div className="grid sm:grid-cols-2 gap-3">
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Nombre completo"
-              className="h-11 px-0 bg-transparent border-b border-[var(--border-color)] outline-none focus:border-[var(--text-primary)]"
-              required
-            />
-            <input
-              value={newHandle}
-              onChange={(e) => setNewHandle(e.target.value)}
-              placeholder="@usuario (opcional)"
-              className="h-11 px-0 bg-transparent border-b border-[var(--border-color)] outline-none focus:border-[var(--text-primary)]"
-            />
-          </div>
-          <input
-            value={newBio}
-            onChange={(e) => setNewBio(e.target.value)}
-            placeholder="Bio corta (opcional)"
-            className="w-full h-11 px-0 bg-transparent border-b border-[var(--border-color)] outline-none focus:border-[var(--text-primary)]"
-          />
-          <div className="flex gap-2 justify-end pt-2">
-            <button type="button" onClick={() => setShowNewUser(false)} className="btn-outline">
-              Cancelar
-            </button>
-            <button type="submit" className="btn-solid">
-              Crear y entrar
-            </button>
-          </div>
-        </form>
-      )}
 
       <header className="flex flex-col sm:flex-row gap-6 sm:items-start mb-10">
         <div className="w-20 h-20 rounded-full border border-[var(--border-color)] font-heading text-2xl flex items-center justify-center shrink-0 bg-[var(--bg-surface)]">
@@ -317,6 +263,8 @@ export default function ProfilePage() {
         ))}
       </div>
 
+      <CrossBridge dismissible />
+
       <div
         role="tablist"
         aria-label="Secciones del perfil"
@@ -338,6 +286,182 @@ export default function ProfilePage() {
           );
         })}
       </div>
+
+      {tab === 'history' && (
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(280px,22rem)] gap-6 lg:gap-8 items-start">
+          <div className="space-y-0 border-y border-[var(--border-color)]">
+            {historyWorks.length === 0 ? (
+              <p className="py-8 font-mono text-sm text-[var(--text-secondary)]">
+                Aún no has registrado libros leídos ni películas vistas.
+              </p>
+            ) : (
+              historyWorks.map((work) => {
+                const active = selectedHistoryId === work.id;
+                const isBook = work.type === 'book';
+                const dates = (
+                  work.consumptionDates?.length ? work.consumptionDates : [work.addedAt]
+                )
+                  .slice()
+                  .sort((a, b) => b - a);
+
+                return (
+                  <div
+                    key={work.id}
+                    className={`border-b border-[var(--border-color)] last:border-0 ${
+                      active ? 'bg-[var(--bg-chip)]/40' : ''
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedHistoryId((prev) => (prev === work.id ? null : work.id))
+                      }
+                      className="w-full text-left flex gap-3 sm:gap-4 py-3.5 sm:py-4 min-h-11 px-1 sm:px-0 transition-colors"
+                      aria-pressed={active}
+                      aria-expanded={active}
+                    >
+                      <div className="w-11 h-16 sm:w-12 sm:h-16 shrink-0 overflow-hidden bg-[var(--bg-chip)] cover-spine">
+                        <CoverImage
+                          src={work.coverUrl}
+                          title={work.title}
+                          creator={work.creator}
+                          type={work.type}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="label-mono text-[var(--text-secondary)] text-[0.65rem] mb-1">
+                          {isBook ? 'Libro leído' : 'Película vista'}
+                        </p>
+                        <p className="font-heading text-base sm:text-lg leading-snug line-clamp-2">
+                          {work.title}
+                        </p>
+                        <p className="text-xs font-mono text-[var(--text-secondary)] mt-1 truncate">
+                          {work.creator}
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* En móvil: fechas debajo del título seleccionado */}
+                    {active ? (
+                      <div className="lg:hidden px-1 pb-4 space-y-3">
+                        <p className="label-mono text-[var(--text-secondary)]">
+                          Fechas de registro
+                        </p>
+                        <ul className="space-y-2">
+                          {dates.map((ts, idx) => (
+                            <li
+                              key={`${work.id}-m-${ts}-${idx}`}
+                              className="text-sm font-mono text-[var(--text-primary)]"
+                            >
+                              {formatRegisteredDate(ts)}
+                              {dates.length > 1 && idx === 0 ? (
+                                <span className="text-[var(--text-secondary)]"> · más reciente</span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                        {typeof work.rating === 'number' && work.rating > 0 ? (
+                          <StarRating value={work.rating} readonly size={16} />
+                        ) : null}
+                        {work.notes ? (
+                          <p className="text-sm font-mono italic text-[var(--text-secondary)]">
+                            “{work.notes}”
+                          </p>
+                        ) : null}
+                        <Link
+                          to={workPath(work.type, work.id)}
+                          className="btn-outline min-h-11 px-4 inline-flex"
+                        >
+                          Ver ficha
+                        </Link>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {selectedHistory ? (
+            <aside
+              className="hidden lg:block border border-[var(--border-color)] p-5 sm:p-6 bg-[var(--bg-surface)] lg:sticky lg:top-28"
+              aria-live="polite"
+            >
+              <div className="space-y-4">
+                <div className="flex gap-4">
+                  <div className="w-16 h-24 shrink-0 overflow-hidden bg-[var(--bg-chip)] cover-spine">
+                    <CoverImage
+                      src={selectedHistory.coverUrl}
+                      title={selectedHistory.title}
+                      creator={selectedHistory.creator}
+                      type={selectedHistory.type}
+                      alt={`Portada de ${selectedHistory.title}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="label-mono text-[var(--text-secondary)] mb-1">
+                      {selectedHistory.type === 'book' ? 'Libro' : 'Película'}
+                    </p>
+                    <h3 className="font-heading text-xl leading-snug">{selectedHistory.title}</h3>
+                    <p className="text-sm font-mono text-[var(--text-secondary)] mt-1">
+                      {selectedHistory.creator}
+                    </p>
+                    {typeof selectedHistory.rating === 'number' && selectedHistory.rating > 0 ? (
+                      <div className="mt-2">
+                        <StarRating value={selectedHistory.rating} readonly size={16} />
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="label-mono text-[var(--text-secondary)] mb-2">
+                    Fechas de registro
+                  </p>
+                  <ul className="space-y-2">
+                    {(selectedHistory.consumptionDates?.length
+                      ? selectedHistory.consumptionDates
+                      : [selectedHistory.addedAt]
+                    )
+                      .slice()
+                      .sort((a, b) => b - a)
+                      .map((ts, idx, arr) => (
+                        <li
+                          key={`${selectedHistory.id}-${ts}-${idx}`}
+                          className="text-sm font-mono text-[var(--text-primary)] border-b border-[var(--border-color)] pb-2"
+                        >
+                          {formatRegisteredDate(ts)}
+                          {arr.length > 1 ? (
+                            <span className="text-[var(--text-secondary)]">
+                              {' '}
+                              · {idx === 0 ? 'más reciente' : `vez ${arr.length - idx}`}
+                            </span>
+                          ) : null}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+
+                {selectedHistory.notes ? (
+                  <p className="text-sm font-mono italic text-[var(--text-secondary)] leading-relaxed">
+                    “{selectedHistory.notes}”
+                  </p>
+                ) : null}
+
+                <Link
+                  to={workPath(selectedHistory.type, selectedHistory.id)}
+                  className="btn-outline min-h-11 px-4 inline-flex"
+                >
+                  Ver ficha
+                </Link>
+              </div>
+            </aside>
+          ) : null}
+        </div>
+      )}
 
       {tab === 'books' && (
         <div className="grid-works w-full">
@@ -364,38 +488,13 @@ export default function ProfilePage() {
       )}
 
       {tab === 'dnf' && (
-        <div className="space-y-4 max-w-2xl">
+        <div className="grid-works w-full">
           {dnf.length === 0 ? (
-            <p className="text-[var(--text-secondary)] font-mono text-sm">No tienes obras abandonadas.</p>
+            <p className="col-span-full text-[var(--text-secondary)] font-mono text-sm">
+              No tienes libros ni películas en DNF.
+            </p>
           ) : (
-            dnf.map((work) => (
-              <article
-                key={work.id}
-                className="flex gap-4 py-4 border-b border-[var(--border-color)]"
-              >
-                <div className="w-14 h-20 overflow-hidden shrink-0 bg-[var(--bg-chip)] cover-spine">
-                  {work.coverUrl ? (
-                    <img
-                      src={work.coverUrl}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  ) : null}
-                </div>
-                <div>
-                  <h3 className="font-heading text-lg">{work.title}</h3>
-                  <p className="text-sm text-[var(--text-secondary)]">{work.creator}</p>
-                  {work.notes && (
-                    <p className="text-sm italic font-mono text-[var(--text-secondary)] mt-2">
-                      “{work.notes}”
-                    </p>
-                  )}
-                </div>
-              </article>
-            ))
+            dnf.map((work) => <WorkCard key={work.id} work={work} />)
           )}
         </div>
       )}
@@ -518,9 +617,6 @@ export default function ProfilePage() {
             )}
           </div>
 
-          <p className="text-xs text-[var(--text-secondary)] font-mono">
-            Cuentas ejemplo: @mayelalopez @andrealopez @reginasosa @danieldorador @danielaleal
-          </p>
         </div>
       )}
 

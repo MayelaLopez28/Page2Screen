@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useLibrary } from '../context/LibraryContext';
 import { getMovieDetails } from '../services/tmdb';
@@ -8,7 +8,9 @@ import CoverImage from '../components/works/CoverImage';
 import Toast from '../components/feedback/Toast';
 import OpinionList from '../components/social/OpinionList';
 import CrossSuggestionBox from '../components/recommendations/CrossSuggestionBox';
+import SimilarWorks from '../components/recommendations/SimilarWorks';
 import { useRecommendation } from '../hooks/useRecommendation';
+import { useSimilarWorks } from '../hooks/useSimilarWorks';
 import { formatYear } from '../utils/format';
 import type { Work, WorkType } from '../types';
 
@@ -28,12 +30,14 @@ type DetailView = {
 export default function WorkDetailPage() {
   const { tipo, id } = useParams();
   const navigate = useNavigate();
-  const { works, friends, profileName, addWork } = useLibrary();
+  const { works, friends, profileName, addWork, updateWork, isLoggedIn } = useLibrary();
 
   const [detail, setDetail] = useState<DetailView | null>(null);
   const [loading, setLoading] = useState(true);
   const [showToast, setShowToast] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+  const [editRequestKey, setEditRequestKey] = useState(0);
+  const opinionsRef = useRef<HTMLElement | null>(null);
 
   const routeId = decodeURIComponent(id || '');
   const workId =
@@ -63,10 +67,11 @@ export default function WorkDetailPage() {
         coverUrl: detail.coverUrl,
         genres: detail.genreIds.length ? detail.genreIds : detail.genres,
         status: localWork?.status || 'pending',
-        addedAt: localWork?.addedAt || Date.now(),
+        addedAt: localWork?.addedAt || 0,
       }
     : null;
   const { recommendation } = useRecommendation(seedWork);
+  const { items: similarItems, loading: similarLoading } = useSimilarWorks(seedWork, 4);
 
   useEffect(() => {
     async function fetchDetail() {
@@ -184,18 +189,47 @@ export default function WorkDetailPage() {
     return list;
   }, [localWork, friends, profileName, workId, detail?.title]);
 
-  const ratingBars = useMemo(() => {
-    const avg = parseFloat(detail?.average || '0');
-    return [5, 4, 3, 2, 1].map((star) => {
-      const distance = Math.abs(avg - star);
+  /** Promedio y barras: base API + calificaciones del círculo (las tuyas se suman al editar). */
+  const { displayAverage, reviewCount, ratingBars } = useMemo(() => {
+    const apiAvg = parseFloat(detail?.average || '0') || 0;
+    const BASE_VOTES = apiAvg > 0 ? 12 : 0;
+    const circleRatings = opinions
+      .map((o) => o.rating)
+      .filter((r): r is number => typeof r === 'number' && r > 0);
+
+    const baseSum = apiAvg * BASE_VOTES;
+    const circleSum = circleRatings.reduce((acc, r) => acc + r, 0);
+    const totalVotes = BASE_VOTES + circleRatings.length;
+    const average =
+      totalVotes > 0 ? (baseSum + circleSum) / totalVotes : 0;
+
+    const bars = [5, 4, 3, 2, 1].map((star) => {
+      const distance = Math.abs(apiAvg - star);
       const weight = Math.max(0, 1 - distance / 3);
-      return { star, count: Math.round(weight * 40 + (star === Math.round(avg) ? 20 : 0)) };
+      let count =
+        BASE_VOTES > 0
+          ? Math.round(weight * (BASE_VOTES * 0.7) + (star === Math.round(apiAvg) ? BASE_VOTES * 0.3 : 0))
+          : 0;
+      circleRatings.forEach((r) => {
+        if (Math.round(r) === star) count += 1;
+      });
+      return { star, count };
     });
-  }, [detail?.average]);
+
+    return {
+      displayAverage: average > 0 ? average.toFixed(1) : '0.0',
+      reviewCount: totalVotes,
+      ratingBars: bars,
+    };
+  }, [detail?.average, opinions]);
 
   if (loading) {
     return (
-      <div className="py-20 text-center label-mono text-[var(--text-secondary)]" role="status">
+      <div
+        className="py-20 text-center label-mono text-[var(--text-secondary)]"
+        role="status"
+        aria-live="polite"
+      >
         Cargando...
       </div>
     );
@@ -214,7 +248,7 @@ export default function WorkDetailPage() {
 
   const handleQuickAdd = () => {
     addWork({
-      id: `${detail.type === 'movie' ? 'm' : 'b'}_${detail.rawId}`,
+      id: workId,
       type: detail.type,
       title: detail.title,
       creator: detail.creator,
@@ -245,6 +279,74 @@ export default function WorkDetailPage() {
     setShowToast(true);
   };
 
+  const openOpinionEditor = () => {
+    setEditRequestKey((n) => n + 1);
+    window.requestAnimationFrame(() => {
+      opinionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const handleSaveOpinion = (rating: number, text: string) => {
+    const now = Date.now();
+    if (localWork) {
+      const prevCount = localWork.consumedCount || (localWork.status === 'done' ? 1 : 0);
+      const dates =
+        localWork.consumptionDates?.length
+          ? localWork.consumptionDates
+          : localWork.status === 'done'
+            ? [localWork.addedAt || now]
+            : [now];
+      updateWork(localWork.id, {
+        rating,
+        notes: text || undefined,
+        status: 'done',
+        consumedCount: Math.max(1, prevCount),
+        consumptionDates: dates,
+      });
+    } else {
+      addWork({
+        id: workId,
+        type: detail.type,
+        title: detail.title,
+        creator: detail.creator,
+        year: formatYear(detail.year),
+        coverUrl: detail.coverUrl,
+        genres: detail.genreIds.length ? detail.genreIds : detail.genres,
+        status: 'done',
+        rating,
+        notes: text || undefined,
+        consumedCount: 1,
+        consumptionDates: [now],
+        addedAt: now,
+      });
+    }
+    setToastMsg('✓ Opinión y calificación actualizadas');
+    setShowToast(true);
+  };
+
+  const handleReconsume = () => {
+    if (!localWork) return;
+    const now = Date.now();
+    const prev = localWork.consumedCount || 1;
+    const prevDates =
+      localWork.consumptionDates?.length
+        ? localWork.consumptionDates
+        : [localWork.addedAt || now];
+    updateWork(localWork.id, {
+      status: 'done',
+      consumedCount: prev + 1,
+      consumptionDates: [...prevDates, now],
+      addedAt: now,
+    });
+    setToastMsg(
+      isBook
+        ? '✓ Nueva lectura registrada. Puedes cambiar tu nota o dejarla igual.'
+        : '✓ Nuevo visionado registrado. Puedes cambiar tu nota o dejarla igual.',
+    );
+    setShowToast(true);
+    openOpinionEditor();
+  };
+
   const isBook = detail.type === 'book';
   const genreLabel = detail.genres[0] || (isBook ? 'Libro' : 'Película');
   const maxBar = Math.max(...ratingBars.map((b) => b.count), 1);
@@ -264,8 +366,8 @@ export default function WorkDetailPage() {
         <span className="text-[var(--text-primary)]">{detail.title}</span>
       </nav>
 
-      <div className="grid lg:grid-cols-[minmax(240px,300px)_minmax(0,760px)] gap-5 sm:gap-10 lg:gap-x-20 items-start justify-center">
-        <div className="aspect-[3/4] w-full max-w-[160px] sm:max-w-sm mx-auto lg:mx-0 bg-[var(--bg-chip)] cover-spine overflow-hidden">
+      <div className="detail-layout">
+        <div className="detail-cover cover-spine">
           <CoverImage
             src={detail.coverUrl}
             title={detail.title}
@@ -276,12 +378,12 @@ export default function WorkDetailPage() {
           />
         </div>
 
-        <div className="min-w-0">
+        <div className="min-w-0 w-full">
           <div className="border-b border-[var(--border-color)] pb-4 sm:pb-8">
             <p className="label-mono text-[var(--text-secondary)] opacity-75 mb-2">
               {genreLabel} · {formatYear(detail.year)}
             </p>
-            <h1 className="font-heading font-bold text-3xl sm:text-4xl lg:text-5xl leading-[1.1] tracking-tight mb-2">
+            <h1 className="font-heading font-bold text-3xl sm:text-4xl lg:text-5xl xl:text-6xl leading-[1.1] tracking-tight mb-2">
               {detail.title}
             </h1>
             <p className="font-heading italic text-base sm:text-xl text-[var(--text-secondary)]">
@@ -291,13 +393,13 @@ export default function WorkDetailPage() {
 
           <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-5 sm:gap-10 py-5 sm:py-6 border-b border-[var(--border-color)]">
             <div>
-              <p className="font-heading text-4xl tabular-nums leading-none">{detail.average}</p>
-              <StarRating value={parseFloat(detail.average)} readonly size={16} />
+              <p className="font-heading text-4xl tabular-nums leading-none">{displayAverage}</p>
+              <StarRating value={parseFloat(displayAverage)} readonly size={16} />
               <p className="label-mono text-[var(--text-secondary)] mt-2">
-                {opinions.length || 0} reseñas
+                {reviewCount} {reviewCount === 1 ? 'valoración' : 'valoraciones'}
               </p>
             </div>
-            <div className="space-y-2 max-w-[230px]" aria-label="Distribución de calificaciones">
+            <div className="space-y-2 w-full max-w-md" aria-label="Distribución de calificaciones">
               {ratingBars.map((bar) => (
                 <div key={bar.star} className="flex items-center gap-2 text-xs font-mono">
                   <span className="w-8 text-[var(--text-secondary)]">{bar.star} ★</span>
@@ -319,7 +421,7 @@ export default function WorkDetailPage() {
 
           <section
             aria-labelledby="synopsis-heading"
-            className="py-7 sm:py-9 max-w-2xl border-b border-[var(--border-color)]"
+            className="py-7 sm:py-9 max-w-3xl xl:max-w-4xl border-b border-[var(--border-color)]"
           >
             <h2 id="synopsis-heading" className="label-mono text-[var(--text-secondary)] mb-3">
               Sinopsis
@@ -329,66 +431,161 @@ export default function WorkDetailPage() {
             </p>
           </section>
 
-          {recommendation && (
-            <div className="py-7 sm:py-9 border-b border-[var(--border-color)]">
-              <CrossSuggestionBox
-                recommendation={recommendation}
-                alreadyInList={Boolean(
-                  recommendation.suggestion.id &&
-                    works.some((w) => w.id === recommendation.suggestion.id),
-                )}
-                onQuickAdd={handleCrossAdd}
-              />
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-3 py-7 sm:py-9">
-            <button
-              type="button"
-              onClick={() =>
-                navigate('/anadir', {
-                  state: {
-                    prefill: {
-                      id: `${detail.type === 'movie' ? 'm' : 'b'}_${detail.rawId}`,
-                      type: detail.type,
-                      title: detail.title,
-                      creator: detail.creator,
-                      year: formatYear(detail.year),
-                      coverUrl: detail.coverUrl,
-                      genres: detail.genreIds,
-                    },
-                  },
-                })
-              }
-              className="btn-solid w-full sm:w-auto min-h-11 px-5"
-            >
-              Escribir reseña
-            </button>
-            {!localWork ? (
-              <button
-                type="button"
-                onClick={handleQuickAdd}
-                className="btn-outline w-full sm:w-auto min-h-11 px-5"
-              >
-                Por {isBook ? 'leer' : 'ver'}
-              </button>
+          <div className="py-7 sm:py-9 space-y-4">
+            {localWork?.status === 'done' ? (
+              <>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="pill pill-active pointer-events-none">
+                    {isBook ? 'Ya leíste' : 'Ya viste'}
+                    {(localWork.consumedCount || 1) > 1
+                      ? ` · ${localWork.consumedCount} veces`
+                      : ''}
+                  </span>
+                  {typeof localWork.rating === 'number' && localWork.rating > 0 ? (
+                    <StarRating value={localWork.rating} readonly size={18} />
+                  ) : null}
+                </div>
+                <p className="text-sm font-mono text-[var(--text-secondary)]">
+                  Ya {isBook ? 'la leíste' : 'la viste'}. Si {isBook ? 'la leíste' : 'la viste'}{' '}
+                  otra vez, regístralo: podrás cambiar tu calificación y comentario, o dejarlos
+                  como están.
+                </p>
+                <div className="flex flex-row flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleReconsume}
+                    className="btn-solid min-h-11 px-5 shrink-0"
+                  >
+                    Volví a {isBook ? 'leerla' : 'verla'}
+                  </button>
+                </div>
+              </>
+            ) : localWork?.status === 'pending' ? (
+              <div className="flex flex-row flex-wrap items-center gap-3">
+                <span className="pill pointer-events-none shrink-0">
+                  En tu lista · {isBook ? 'Por leer' : 'Por ver'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate('/anadir', {
+                      state: {
+                        prefill: {
+                          id: workId,
+                          type: detail.type,
+                          title: detail.title,
+                          creator: detail.creator,
+                          year: formatYear(detail.year),
+                          coverUrl: detail.coverUrl,
+                          genres: detail.genreIds,
+                        },
+                      },
+                    })
+                  }
+                  className="btn-solid min-h-11 px-5 shrink-0"
+                >
+                  Escribir reseña
+                </button>
+                <button
+                  type="button"
+                  onClick={openOpinionEditor}
+                  className="btn-outline min-h-11 px-5 shrink-0"
+                >
+                  Marcar como {isBook ? 'leída' : 'vista'}
+                </button>
+              </div>
+            ) : localWork?.status === 'dnf' ? (
+              <div className="flex flex-row flex-wrap items-center gap-3">
+                <span className="pill pointer-events-none shrink-0">Lo dejaste (DNF)</span>
+                <button
+                  type="button"
+                  onClick={openOpinionEditor}
+                  className="btn-solid min-h-11 px-5 shrink-0"
+                >
+                  Actualizar opinión
+                </button>
+                <button
+                  type="button"
+                  onClick={handleQuickAdd}
+                  className="btn-outline min-h-11 px-5 shrink-0"
+                >
+                  Volver a {isBook ? 'por leer' : 'por ver'}
+                </button>
+              </div>
             ) : (
-              <span className="btn-outline w-full sm:w-auto min-h-11 px-5 opacity-60 pointer-events-none">
-                En tu lista
-              </span>
+              <div className="flex flex-row flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate('/anadir', {
+                      state: {
+                        prefill: {
+                          id: workId,
+                          type: detail.type,
+                          title: detail.title,
+                          creator: detail.creator,
+                          year: formatYear(detail.year),
+                          coverUrl: detail.coverUrl,
+                          genres: detail.genreIds,
+                        },
+                      },
+                    })
+                  }
+                  className="btn-solid min-h-11 px-5 shrink-0"
+                >
+                  Escribir reseña
+                </button>
+                <button
+                  type="button"
+                  onClick={handleQuickAdd}
+                  className="btn-outline min-h-11 px-5 shrink-0"
+                >
+                  {isBook ? 'Por leer' : 'Por ver'}
+                </button>
+              </div>
             )}
           </div>
-
-          <section
-            aria-labelledby="social-opinions"
-            className="border-t border-[var(--border-color)] pt-8 max-w-2xl"
-          >
-            <h2 id="social-opinions" className="font-heading text-3xl sm:text-4xl mb-7">
-              Opiniones de tu círculo
-            </h2>
-            <OpinionList opinions={opinions} />
-          </section>
         </div>
+      </div>
+
+      <div className="mt-4 sm:mt-6 border-t border-[var(--border-color)]">
+        <SimilarWorks
+          sourceTitle={detail.title}
+          type={detail.type}
+          items={similarItems}
+          loading={similarLoading}
+        />
+
+        {recommendation?.suggestion?.id && seedWork && (
+          <div className="py-7 sm:py-9 border-b border-[var(--border-color)]">
+            <CrossSuggestionBox
+              recommendation={recommendation}
+              source={seedWork}
+              alreadyInList={Boolean(
+                recommendation.suggestion.id &&
+                  works.some((w) => w.id === recommendation.suggestion.id),
+              )}
+              onQuickAdd={handleCrossAdd}
+            />
+          </div>
+        )}
+
+        <section
+          ref={opinionsRef}
+          aria-labelledby="social-opinions"
+          className="border-t border-[var(--border-color)] pt-8 max-w-3xl xl:max-w-4xl"
+        >
+          <h2 id="social-opinions" className="font-heading text-3xl sm:text-4xl mb-7">
+            Opiniones de tu círculo
+          </h2>
+          <OpinionList
+            opinions={opinions}
+            editableId={isLoggedIn ? 'me' : undefined}
+            canCreate={isLoggedIn}
+            onSaveOpinion={isLoggedIn ? handleSaveOpinion : undefined}
+            editRequestKey={editRequestKey}
+          />
+        </section>
       </div>
 
       {showToast && (

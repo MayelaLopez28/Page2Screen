@@ -1,6 +1,6 @@
 .page-shell {
   width: 100%;
-  max-width: 1280px;
+  max-width: min(100%, 72rem); /* ~1152px en pantallas medias */
   margin-inline: auto;
   padding-inline: 1rem;
 }
@@ -13,14 +13,29 @@
 
 @media (min-width: 1024px) {
   .page-shell {
+    max-width: min(100%, 80rem); /* ~1280px */
     padding-inline: 2rem;
   }
 }
 
 @media (min-width: 1440px) {
   .page-shell {
-    max-width: 1400px;
+    max-width: min(100%, 96rem); /* ~1536px */
     padding-inline: 2.5rem;
+  }
+}
+
+@media (min-width: 1680px) {
+  .page-shell {
+    max-width: min(100%, 108rem); /* ~1728px: maximizado usa más ancho */
+    padding-inline: 3rem;
+  }
+}
+
+@media (min-width: 1920px) {
+  .page-shell {
+    max-width: min(100%, 120rem); /* ~1920px con márgenes cómodos */
+    padding-inline: 3.5rem;
   }
 }
 
@@ -46,6 +61,13 @@
 @media (min-width: 1400px) {
   .grid-works {
     grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 2.25rem 1.75rem;
+  }
+}
+
+@media (min-width: 1680px) {
+  .grid-works {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 
@@ -64,12 +86,61 @@
 @media (min-width: 1024px) {
   .grid-reco {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.75rem;
   }
 }
 
 @media (min-width: 1400px) {
   .grid-reco {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1680px) {
+  .grid-reco {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.detail-layout {
+  display: grid;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .detail-layout {
+    grid-template-columns: minmax(240px, 22vw) minmax(0, 1fr);
+    gap: 2.5rem 3.5rem;
+  }
+}
+
+@media (min-width: 1440px) {
+  .detail-layout {
+    grid-template-columns: minmax(280px, 18vw) minmax(0, 1fr);
+    gap: 3rem 4.5rem;
+  }
+}
+
+.detail-cover {
+  aspect-ratio: 3 / 4;
+  width: 100%;
+  max-width: 10rem;
+  margin-inline: auto;
+  background: var(--bg-chip);
+  overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .detail-cover {
+    max-width: 16rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .detail-cover {
+    max-width: none;
+    margin-inline: 0;
   }
 }
 

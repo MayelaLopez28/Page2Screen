@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getTrendingMovies } from '../services/tmdb';
-import { getTrendingBooks } from '../services/openLibrary';
+import { discoverMoviesByGenre, getTrendingMovies } from '../services/tmdb';
+import { getTrendingBooks, searchBooksBySubject } from '../services/openLibrary';
 import {
   getCrossRecommendationsForLibrary,
   type CrossRecommendation,
@@ -9,6 +9,16 @@ import { useLibrary } from '../context/LibraryContext';
 import RecommendationCard from '../components/recommendations/RecommendationCard';
 import CrossBridge from '../components/recommendations/CrossBridge';
 import WorkCard from '../components/works/WorkCard';
+import { getDismissedRecIds, getRecSession } from '../utils/recommendationPrefs';
+import {
+  CATALOG_GENRES,
+  type CatalogGenreId,
+  genreLabel,
+  getGenreFetchPlan,
+  workMatchesGenre,
+} from '../constants/catalogGenres';
+import { CATALOG_BOOKS } from '../data/catalogBooks';
+import { mockWorks } from '../data/mock';
 import type { Work } from '../types';
 
 type Filter = 'all' | 'book' | 'movie' | 'cross';
@@ -23,11 +33,14 @@ function sortWorks(list: Work[], sort: Sort) {
 }
 
 export default function ExplorePage() {
-  const { works } = useLibrary();
+  const { works, currentUserId } = useLibrary();
   const [filter, setFilter] = useState<Filter>('all');
+  const [genre, setGenre] = useState<CatalogGenreId>('all');
   const [sort, setSort] = useState<Sort>('rating');
   const [trending, setTrending] = useState<Work[]>([]);
+  const [genreBoost, setGenreBoost] = useState<Work[]>([]);
   const [loading, setLoading] = useState(true);
+  const [genreLoading, setGenreLoading] = useState(false);
   const [crossPairs, setCrossPairs] = useState<
     Array<CrossRecommendation & { source: Work }>
   >([]);
@@ -42,7 +55,7 @@ export default function ExplorePage() {
           getTrendingBooks(),
         ]);
 
-        const movies: Work[] = (moviesData || []).slice(0, 10).map((m: Record<string, any>) => ({
+        const movies: Work[] = (moviesData || []).slice(0, 18).map((m: Record<string, any>) => ({
           id: String(m.id).startsWith('m_') ? String(m.id) : `m_${m.id}`,
           type: 'movie' as const,
           title: m.title,
@@ -57,26 +70,30 @@ export default function ExplorePage() {
           addedAt: Date.now(),
         }));
 
-        const books: Work[] = (booksData || []).map((b: Record<string, any>) => {
-          const rawId = String(b.id || b.key || '');
-          const id = rawId.startsWith('b_')
-            ? rawId
-            : `b_isbn_${rawId.replace('/works/', '').replace(/^b_/, '')}`;
-          return {
-            id,
-            type: 'book' as const,
-            title: b.title,
-            creator: b.creator || b.author_name?.[0] || 'Autor Desconocido',
-            year: b.year?.toString?.() || b.first_publish_year?.toString() || '2024',
-            coverUrl: b.coverUrl,
-            genres: b.genres?.length ? b.genres : ['fiction'],
-            status: 'pending' as const,
-            rating: typeof b.rating === 'number' ? b.rating : 4.4,
-            addedAt: Date.now(),
-          };
-        });
+        const books: Work[] = (booksData || [])
+          .map((b: Record<string, any>) => {
+            const rawId = String(b.id || b.key || '');
+            const id = rawId.startsWith('b_')
+              ? rawId
+              : `b_isbn_${rawId.replace('/works/', '').replace(/^b_/, '')}`;
+            return {
+              id,
+              type: 'book' as const,
+              title: b.title,
+              creator: b.creator || b.author_name?.[0] || 'Autor Desconocido',
+              year: b.year?.toString?.() || b.first_publish_year?.toString() || '2024',
+              coverUrl: b.coverUrl,
+              genres: b.genres?.length ? b.genres : ['fiction'],
+              status: 'pending' as const,
+              rating: typeof b.rating === 'number' ? b.rating : 4.4,
+              addedAt: Date.now(),
+            };
+          })
+          .filter((b) => Boolean(b.coverUrl));
 
-        setTrending([...books, ...movies]);
+        const moviesWithCover = movies.filter((m) => Boolean(m.coverUrl));
+        // Libros populares primero en la grilla principal
+        setTrending([...books, ...moviesWithCover]);
       } finally {
         setLoading(false);
       }
@@ -91,7 +108,11 @@ export default function ExplorePage() {
 
     let cancelled = false;
     setCrossLoading(true);
-    getCrossRecommendationsForLibrary(works, 8)
+    const session = getRecSession(currentUserId);
+    getCrossRecommendationsForLibrary(works, 8, {
+      excludeSuggestionIds: getDismissedRecIds(currentUserId),
+      sessionSalt: session,
+    })
       .then((pairs) => {
         if (!cancelled) {
           setCrossPairs(pairs);
@@ -105,15 +126,146 @@ export default function ExplorePage() {
     return () => {
       cancelled = true;
     };
-  }, [filter, works]);
+  }, [filter, works, currentUserId]);
+
+  // Al elegir un género, refuerza con catálogo local + discover TMDB + subjects.
+  useEffect(() => {
+    if (genre === 'all' || filter === 'cross') {
+      setGenreBoost([]);
+      return;
+    }
+
+    let cancelled = false;
+    const plan = getGenreFetchPlan(genre);
+
+    async function boost() {
+      setGenreLoading(true);
+      try {
+        const seededBooks: Work[] = CATALOG_BOOKS.filter((b) =>
+          workMatchesGenre(b.genres, genre),
+        ).map((b) => ({
+          id: b.id,
+          type: 'book' as const,
+          title: b.title,
+          creator: b.creator,
+          year: b.year,
+          coverUrl: b.coverUrl,
+          genres: b.genres || [genre],
+          status: 'pending' as const,
+          rating: b.rating ?? 4.3,
+          addedAt: Date.now(),
+        }));
+
+        const seededMovies: Work[] = mockWorks
+          .filter((w) => w.type === 'movie' && workMatchesGenre(w.genres, genre))
+          .map((w) => ({
+            ...w,
+            genres: Array.from(new Set([...(w.genres || []), genre])),
+            status: 'pending' as const,
+            addedAt: Date.now(),
+          }));
+
+        const movieLists = await Promise.all(
+          plan.tmdbIds.map((id) =>
+            discoverMoviesByGenre(id).catch(() => [] as Record<string, unknown>[]),
+          ),
+        );
+        const bookLists = await Promise.all(
+          plan.bookSubjects.map((subject) =>
+            searchBooksBySubject(subject).catch(() => [] as Record<string, unknown>[]),
+          ),
+        );
+
+        if (cancelled) return;
+
+        const movies: Work[] = movieLists
+          .flat()
+          .slice(0, 40)
+          .map((m: Record<string, any>) => {
+            const id = String(m.id).startsWith('m_') ? String(m.id) : `m_${m.id}`;
+            const genreIds = (m.genre_ids || m.genres || []).map(String);
+            return {
+              id,
+              type: 'movie' as const,
+              title: m.title,
+              creator: m.creator || 'Director (TMDB)',
+              year: m.release_date?.substring?.(0, 4) || m.year || '',
+              coverUrl:
+                m.coverUrl ||
+                (m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : undefined),
+              genres: Array.from(new Set([...genreIds, genre])),
+              status: 'pending' as const,
+              rating: 4.2,
+              addedAt: Date.now(),
+            };
+          })
+          .filter((m) => Boolean(m.coverUrl) && Boolean(m.title));
+
+        const books: Work[] = bookLists
+          .flat()
+          .slice(0, 36)
+          .map((b: Record<string, any>) => {
+            const key = String(b.key || b.id || '').replace('/works/', '');
+            const id = key.startsWith('b_')
+              ? key
+              : /^\d{10,13}$/.test(key)
+                ? `b_isbn_${key}`
+                : `b_gb_${key}`;
+            return {
+              id,
+              type: 'book' as const,
+              title: b.title,
+              creator: b.authors?.[0]?.name || b.creator || 'Autor Desconocido',
+              year: b.first_publish_year?.toString?.() || b.year || '',
+              coverUrl: b.coverUrl,
+              genres: Array.from(new Set([genre, ...(b.genres || [])])),
+              status: 'pending' as const,
+              rating: 4.3,
+              addedAt: Date.now(),
+            };
+          })
+          .filter((b) => {
+            if (!b.title || !b.coverUrl || b.id === 'b_gb_') return false;
+            // Evitar portadas ISBN rotas de Open Library y placeholders de Google
+            if (b.coverUrl.includes('covers.openlibrary.org/b/isbn/')) return false;
+            return true;
+          });
+
+        // Catálogo local primero; remotas solo si no duplican título
+        const seededTitles = new Set(seededBooks.map((b) => b.title.toLowerCase()));
+        const remoteBooks = books.filter((b) => !seededTitles.has(b.title.toLowerCase()));
+        setGenreBoost([...seededBooks, ...seededMovies, ...remoteBooks, ...movies]);
+      } finally {
+        if (!cancelled) setGenreLoading(false);
+      }
+    }
+
+    boost();
+    return () => {
+      cancelled = true;
+    };
+  }, [genre, filter]);
+
+  const catalogPool = useMemo(() => {
+    const map = new Map<string, Work>();
+    for (const w of [...trending, ...genreBoost]) {
+      if (!map.has(w.id)) map.set(w.id, w);
+    }
+    return [...map.values()];
+  }, [trending, genreBoost]);
+
+  const byGenre = useMemo(
+    () => catalogPool.filter((w) => workMatchesGenre(w.genres, genre)),
+    [catalogPool, genre],
+  );
 
   const books = useMemo(
-    () => sortWorks(trending.filter((w) => w.type === 'book'), sort),
-    [trending, sort],
+    () => sortWorks(byGenre.filter((w) => w.type === 'book'), sort),
+    [byGenre, sort],
   );
   const movies = useMemo(
-    () => sortWorks(trending.filter((w) => w.type === 'movie'), sort),
-    [trending, sort],
+    () => sortWorks(byGenre.filter((w) => w.type === 'movie'), sort),
+    [byGenre, sort],
   );
 
   const filtered = useMemo(() => {
@@ -126,10 +278,10 @@ export default function ExplorePage() {
     }
 
     if (filter === 'cross') {
-      return sortWorks(trending, sort);
+      return sortWorks(catalogPool, sort);
     }
     return [...books, ...movies];
-  }, [filter, books, movies, trending, sort]);
+  }, [filter, books, movies, catalogPool, sort]);
 
   const chips: { id: Filter; label: string }[] = [
     { id: 'all', label: 'Todos' },
@@ -145,6 +297,9 @@ export default function ExplorePage() {
         ? crossPairs.length
         : filtered.length;
 
+  const genreHeading =
+    genre === 'all' ? null : ` · ${genreLabel(genre)}`;
+
   return (
     <div className="animate-in fade-in w-full">
       <section className="text-center w-full max-w-3xl mx-auto mb-10 lg:mb-12 pt-4">
@@ -152,11 +307,15 @@ export default function ExplorePage() {
           Explora el catálogo
         </h1>
         <p className="mt-4 text-sm sm:text-base text-[var(--text-secondary)] font-mono">
-          Descubre libros y películas, filtra por formato y comparte tu reseña.
+          Descubre libros y películas, filtra por formato o género y comparte tu reseña.
         </p>
       </section>
 
-      <div className="relative flex flex-wrap items-center justify-center gap-2 mb-8 py-3 border-y border-[var(--border-color)]">
+      <div
+        className="relative flex flex-wrap items-center justify-center gap-2 mb-4 py-3 border-y border-[var(--border-color)]"
+        role="group"
+        aria-label="Filtrar por formato"
+      >
         {chips.map((chip) => {
           const active = filter === chip.id;
           return (
@@ -172,8 +331,32 @@ export default function ExplorePage() {
         })}
       </div>
 
+      {filter !== 'cross' ? (
+        <div
+          className="flex flex-wrap items-center justify-center gap-2 mb-8"
+          role="group"
+          aria-label="Filtrar por género"
+        >
+          {CATALOG_GENRES.map((g) => {
+            const active = genre === g.id;
+            return (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => setGenre(g.id)}
+                className={`pill ${active ? 'pill-active' : ''}`}
+              >
+                {g.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
-        <p className="label-mono text-[var(--text-secondary)]">{totalCount} obras</p>
+        <p className="label-mono text-[var(--text-secondary)]">
+          {totalCount} obras{genreHeading}
+        </p>
         <label className="inline-flex items-center gap-2 label-mono text-[var(--text-secondary)]">
           Ordenar:
           <select
@@ -188,18 +371,27 @@ export default function ExplorePage() {
         </label>
       </div>
 
-      {loading ? (
-        <p className="text-center text-[var(--text-secondary)] label-mono py-16 animate-pulse">
+      {loading || (genre !== 'all' && genreLoading && books.length + movies.length < 4) ? (
+        <p
+          className="text-center text-[var(--text-secondary)] label-mono py-16 animate-pulse"
+          role="status"
+          aria-live="polite"
+        >
           Descubriendo obras...
         </p>
       ) : filter === 'cross' ? (
         crossLoading ? (
-          <p className="text-center text-[var(--text-secondary)] label-mono py-16 animate-pulse">
+          <p
+            className="text-center text-[var(--text-secondary)] label-mono py-16 animate-pulse"
+            role="status"
+            aria-live="polite"
+          >
             Tejiendo puentes libro ↔ película...
           </p>
         ) : crossPairs.length === 0 ? (
           <p className="text-center text-sm font-mono text-[var(--text-secondary)] py-12">
-            Añade obras a tu biblioteca para recibir puentes personalizados.
+            Marca una obra como por leer / por ver, o califica una terminada con 3.5★ o más,
+            para ver puentes libro ↔ película.
           </p>
         ) : (
           <div className="space-y-10">
@@ -223,7 +415,8 @@ export default function ExplorePage() {
                       rating: work.rating,
                       addedAt: Date.now(),
                     }}
-                    reason={`${pair.reason} (por ${pair.source.title})`}
+                    source={pair.source}
+                    reason={pair.reason}
                   />
                 );
               })}
@@ -235,17 +428,36 @@ export default function ExplorePage() {
           <section aria-labelledby="sec-libros">
             <div className="flex items-baseline justify-between gap-4 mb-6 border-b border-[var(--border-color)] pb-3">
               <h2 id="sec-libros" className="font-heading text-2xl sm:text-3xl">
-                Libros
+                Libros{genreHeading}
               </h2>
-              <span className="label-mono text-[var(--text-secondary)]">
-                {books.length} libros
-              </span>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="label-mono text-[var(--text-secondary)]">
+                  {books.length} libros
+                </span>
+                {books.length > 0 && (
+                  <button
+                    type="button"
+                    aria-label="Ver todos los libros del catálogo"
+                    className="label-mono text-[var(--text-primary)] underline underline-offset-4 hover:opacity-70"
+                    onClick={() => {
+                      setFilter('book');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  >
+                    Ver todos →
+                  </button>
+                )}
+              </div>
             </div>
             {books.length === 0 ? (
-              <p className="text-sm font-mono text-[var(--text-secondary)]">Sin libros por ahora.</p>
+              <p className="text-sm font-mono text-[var(--text-secondary)]">
+                {genre === 'all'
+                  ? 'Sin libros por ahora.'
+                  : `No hay libros de ${genreLabel(genre)} en el catálogo.`}
+              </p>
             ) : (
               <div className="grid-works w-full">
-                {books.map((work) => (
+                {books.slice(0, 8).map((work) => (
                   <WorkCard key={work.id} work={work} />
                 ))}
               </div>
@@ -255,19 +467,36 @@ export default function ExplorePage() {
           <section aria-labelledby="sec-peliculas">
             <div className="flex items-baseline justify-between gap-4 mb-6 border-b border-[var(--border-color)] pb-3">
               <h2 id="sec-peliculas" className="font-heading text-2xl sm:text-3xl">
-                Películas
+                Películas{genreHeading}
               </h2>
-              <span className="label-mono text-[var(--text-secondary)]">
-                {movies.length} películas
-              </span>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="label-mono text-[var(--text-secondary)]">
+                  {movies.length} películas
+                </span>
+                {movies.length > 0 && (
+                  <button
+                    type="button"
+                    aria-label="Ver todas las películas del catálogo"
+                    className="label-mono text-[var(--text-primary)] underline underline-offset-4 hover:opacity-70"
+                    onClick={() => {
+                      setFilter('movie');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  >
+                    Ver todos →
+                  </button>
+                )}
+              </div>
             </div>
             {movies.length === 0 ? (
               <p className="text-sm font-mono text-[var(--text-secondary)]">
-                Sin películas por ahora.
+                {genre === 'all'
+                  ? 'Sin películas por ahora.'
+                  : `No hay películas de ${genreLabel(genre)} en el catálogo.`}
               </p>
             ) : (
               <div className="grid-works w-full">
-                {movies.map((work) => (
+                {movies.slice(0, 8).map((work) => (
                   <WorkCard key={work.id} work={work} />
                 ))}
               </div>
@@ -276,6 +505,12 @@ export default function ExplorePage() {
 
           <CrossBridge />
         </div>
+      ) : filtered.length === 0 ? (
+        <p className="text-center text-sm font-mono text-[var(--text-secondary)] py-12">
+          {genre === 'all'
+            ? 'No hay obras en este filtro.'
+            : `No hay obras de ${genreLabel(genre)} con este filtro.`}
+        </p>
       ) : (
         <div className="grid-works w-full">
           {filtered.map((work) => (

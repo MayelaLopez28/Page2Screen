@@ -10,7 +10,8 @@ export const genreMap = {
         '36': 'history',
         '80': 'crime',
         '10752': 'war',
-        '18': 'drama'
+        '18': 'drama',
+        '10751': 'young_adult',
     } as Record<string, string>,
 
     olToTmdb: {
@@ -30,7 +31,9 @@ export const genreMap = {
         'drama': '18',
         'fiction': '18',
         'young_adult_fiction': '12',
+        'young_adult': '10751',
         'dystopia': '878',
         'cyberpunk': '878',
+        'adventure_stories': '12',
     } as Record<string, string>
 };

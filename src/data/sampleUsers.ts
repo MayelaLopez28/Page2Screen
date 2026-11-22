@@ -5,6 +5,8 @@ export interface UserAccount {
   id: string;
   name: string;
   handle: string;
+  /** Contraseña en claro solo para demo local (sin backend). */
+  password: string;
   bio: string;
   works: Work[];
   friends: Friend[];
@@ -41,13 +43,17 @@ function toFriend(account: UserAccount): Friend {
 
 export const PRIMARY_USER_ID = 'u_mayela';
 
+/** Contraseña compartida de las 3 cuentas demo (no se muestran en la UI). */
+export const DEMO_PASSWORD = 'page2screen';
+
 export const SAMPLE_ACCOUNTS: UserAccount[] = [
   {
     id: PRIMARY_USER_ID,
     name: 'Mayela Lopez',
     handle: 'mayelalopez',
+    password: DEMO_PASSWORD,
     bio: 'Fundadora de Page2Screen. Cruza libros y cine sin parar.',
-    works: pickWorks('b_OL45804W', 'm_157336', 'b_OL82563W', 'm_27205'),
+    works: pickWorks('b_isbn_9780441172719', 'm_157336', 'b_isbn_9780553293357', 'm_27205'),
     friends: [],
     isSample: true,
   },
@@ -55,8 +61,9 @@ export const SAMPLE_ACCOUNTS: UserAccount[] = [
     id: 'u_andrea',
     name: 'Andrea Lopez',
     handle: 'andrealopez',
+    password: DEMO_PASSWORD,
     bio: 'Romance contemporáneo y thrillers de domingo.',
-    works: pickWorks('b_OL27448W', 'm_11', 'b_OL24377594W'),
+    works: pickWorks('b_isbn_9780141439518', 'm_11', 'b_isbn_9780307743657', 'm_694'),
     friends: [],
     isSample: true,
   },
@@ -64,26 +71,9 @@ export const SAMPLE_ACCOUNTS: UserAccount[] = [
     id: 'u_regina',
     name: 'Regina Sosa',
     handle: 'reginasosa',
+    password: DEMO_PASSWORD,
     bio: 'Fantasía épica, relecturas y cine de autor.',
-    works: pickWorks('b_OL45804W', 'm_694', 'm_27205'),
-    friends: [],
-    isSample: true,
-  },
-  {
-    id: 'u_daniel',
-    name: 'Daniel Dorador',
-    handle: 'danieldorador',
-    bio: 'Sci-fi hard y películas que duelen bonito.',
-    works: pickWorks('m_157336', 'b_OL24377594W', 'm_11'),
-    friends: [],
-    isSample: true,
-  },
-  {
-    id: 'u_daniela',
-    name: 'Daniela Leal',
-    handle: 'danielaleal',
-    bio: 'Clásicos, DNFs honestos y listas por ver eternas.',
-    works: pickWorks('b_OL82563W', 'm_694', 'b_OL27448W'),
+    works: pickWorks('b_isbn_9780547928227', 'm_27205', 'b_isbn_9780439023481', 'm_157336'),
     friends: [],
     isSample: true,
   },
@@ -107,7 +97,12 @@ export function sampleAccountToFriend(account: UserAccount): Friend {
   return toFriend(account);
 }
 
-export function createBlankAccount(name: string, handle?: string, bio?: string): UserAccount {
+export function createBlankAccount(
+  name: string,
+  handle: string | undefined,
+  password: string,
+  bio?: string,
+): UserAccount {
   const cleanName = name.trim();
   const derivedHandle =
     handle?.trim().replace(/^@/, '') ||
@@ -123,6 +118,7 @@ export function createBlankAccount(name: string, handle?: string, bio?: string):
     id: `u_${Date.now()}`,
     name: cleanName,
     handle: derivedHandle,
+    password,
     bio: bio?.trim() || 'Nueva cuenta en Page2Screen.',
     works: [],
     friends: [],
@@ -139,4 +135,12 @@ export function seedAccounts(): { accounts: UserAccount[]; currentUserId: string
     })),
     currentUserId: PRIMARY_USER_ID,
   };
+}
+
+export function findAccountByHandle(
+  accounts: UserAccount[],
+  handle: string,
+): UserAccount | undefined {
+  const needle = handle.trim().replace(/^@/, '').toLowerCase();
+  return accounts.find((a) => a.handle.toLowerCase() === needle);
 }

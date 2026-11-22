@@ -7,6 +7,18 @@ export function formatYear(dateString?: string): string {
     return match ? match[0] : 'Desconocido';
 }
 
+export function formatRegisteredDate(timestamp?: number): string {
+    if (!timestamp) {
+        return 'Fecha no registrada';
+    }
+
+    return new Date(timestamp).toLocaleDateString('es-MX', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    });
+}
+
 export function truncateText(text: string, maxLength: number): string {
     if (text.length <= maxLength) {
         return text;

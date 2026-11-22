@@ -2,6 +2,17 @@
 @import "./tokens.css";
 @import "./layout.css";
 
+/* El header sticky (más alto en móvil) no debe tapar el elemento con foco (WCAG 2.4.11) */
+html {
+  scroll-padding-top: 12rem;
+}
+
+@media (min-width: 1024px) {
+  html {
+    scroll-padding-top: 7.5rem;
+  }
+}
+
 body {
   background-color: var(--bg-app);
   color: var(--text-primary);

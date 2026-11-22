@@ -12,6 +12,8 @@ export interface Work {
   status: WorkStatus;
   rating?: number;
   notes?: string;
+  consumedCount?: number;
+  consumptionDates?: number[];
   addedAt: number;
 }
 

@@ -3,7 +3,39 @@ import { useLibrary } from '../context/LibraryContext';
 import WorkCard from '../components/works/WorkCard';
 
 export default function ListsPage() {
-  const { works } = useLibrary();
+  const { works, isLoggedIn } = useLibrary();
+
+  if (!isLoggedIn) {
+    return (
+      <div className="animate-in fade-in max-w-lg mx-auto py-16 text-center space-y-6">
+        <p className="label-mono text-[var(--text-secondary)]">Tu biblioteca</p>
+        <h1 className="font-heading text-3xl sm:text-4xl">Mis listas</h1>
+        <p className="text-sm font-mono text-[var(--text-secondary)] leading-relaxed">
+          Para ver lo que tienes por leer o por ver necesitas una sesión activa. Entra con una
+          cuenta o crea un perfil nuevo.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+          <Link to="/entrar" className="btn-solid min-h-11 px-6 justify-center">
+            Iniciar sesión
+          </Link>
+          <Link
+            to="/entrar"
+            state={{ openNewSession: true }}
+            className="btn-outline min-h-11 px-6 justify-center"
+          >
+            Crear perfil
+          </Link>
+        </div>
+        <p className="text-xs font-mono text-[var(--text-secondary)] pt-4">
+          También puedes{' '}
+          <Link to="/" className="underline text-[var(--text-primary)]">
+            explorar el catálogo
+          </Link>{' '}
+          sin iniciar sesión.
+        </p>
+      </div>
+    );
+  }
 
   const toRead = works.filter((w) => w.status === 'pending' && w.type === 'book');
   const toWatch = works.filter((w) => w.status === 'pending' && w.type === 'movie');

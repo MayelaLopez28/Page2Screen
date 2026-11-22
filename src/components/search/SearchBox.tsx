@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { KeyboardEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, Loader2 } from 'lucide-react';
 import { searchMovies } from '../../services/tmdb';
 import { searchBooks } from '../../services/openLibrary';
@@ -24,6 +24,14 @@ export function SearchBox({ variant = 'default' }: SearchBoxProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  // Al cambiar de ruta (p. ej. ir a escribir reseña) cerrar el dropdown y no dejar “Buscando…”
+  useEffect(() => {
+    setIsOpen(false);
+    setLoading(false);
+    setSelectedIndex(-1);
+  }, [pathname]);
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {

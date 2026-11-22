@@ -11,7 +11,6 @@ const OPTIONS: RequestInit = {
   method: 'GET',
   headers: {
     accept: 'application/json',
-    // Con proxy el token vive solo en el servidor; no lo enviamos desde el navegador.
     ...(!USE_PROXY && TMDB_TOKEN ? { Authorization: `Bearer ${TMDB_TOKEN}` } : {}),
   },
 };
@@ -117,7 +116,7 @@ export async function discoverMoviesByGenre(genreId: string) {
   if (isTmdbMockMode) {
     warnDemo('discover');
     return mockWorks
-      .filter((w) => w.type === 'movie' && w.genres.includes(genreId))
+      .filter((w) => w.type === 'movie' && w.genres.map(String).includes(String(genreId)))
       .map((w) => ({
         id: Number(w.id.replace('m_', '')),
         title: w.title,
@@ -130,7 +129,7 @@ export async function discoverMoviesByGenre(genreId: string) {
 
   try {
     const res = await fetch(
-      `${BASE_URL}/discover/movie?with_genres=${genreId}&language=es-MX&sort_by=popularity.desc&vote_count.gte=3000`,
+      `${BASE_URL}/discover/movie?with_genres=${genreId}&language=es-MX&sort_by=popularity.desc&vote_count.gte=100&page=1`,
       OPTIONS,
     );
 

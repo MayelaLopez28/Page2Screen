@@ -80,7 +80,7 @@ export default function HomePage({ filter }: HomePageProps) {
         </Link>
       </div>
 
-      {works.length > 0 && <CrossBridge />}
+      <CrossBridge />
 
       {filteredWorks.length === 0 ? (
         <div className="text-center py-20 px-4 bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-color)] shadow-sm">

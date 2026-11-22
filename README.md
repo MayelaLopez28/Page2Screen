@@ -17,11 +17,15 @@ Plataforma web responsive que conecta **libros y películas**: tracker personal,
 
 ## Funcionalidades
 
-- Explorar tendencias y buscar obras (películas + libros).
-- Guardar en listas (pendiente / leído o visto) con calificación y notas.
-- Ficha de detalle con sinopsis, opiniones del círculo y **sugerencia cruzada**.
-- Perfil social sin backend: código de perfil (Base64) para agregar amigos.
-- Estados de **carga / éxito / error** (y fallback a datos demo si faltan claves).
+- Explorar catálogo con filtros por **formato** (libros/películas) y por **género** (terror, romance, fantasía, etc.).
+- Guardar en listas (**Por leer / Por ver**, leído/visto, DNF) con calificación, notas y fechas de registro.
+- Ficha de detalle: sinopsis, promedio que incluye tu nota, obras **similares del mismo género**, **sugerencia cruzada** (con obra de referencia visible).
+- Si ya se consumió: estado **Ya leíste / Ya viste** y opción **Volví a leerla/verla** para actualizar (o mantener) la opinión.
+- Recomendaciones cruzadas a partir de pendientes o reseñas ≥ 3.5★; en el perfil, **No me interesa** descarta esa sugerencia y rotan al iniciar sesión.
+- **Login** con usuario/contraseña o **crear perfil**; cerrar sesión desde el perfil.
+- Perfil: **Historial** con fechas al seleccionar un título; leídos/vistas/DNF con portadas; amigos por código.
+- Layout responsive (más ancho en desktop maximizado; historial usable en móvil).
+- Estados de **carga / éxito / error** (toast breve; fallback demo si faltan claves).
 
 ---
 
@@ -103,7 +107,7 @@ Implementación con `fetch` + `async/await` + JSON en `src/services/`.
 - [ ] Vista móvil
 - [ ] Token solo en el hosting, no en el repo
 
-**URL pública:** _(pendiente — pegar tras el deploy)_  
+**URL pública:** https://page2-screen.vercel.app  
 **Capturas:** _(móvil + recarga de `/obra/...` — agregar al entregar)_  
 **Repositorio:** https://github.com/MayelaLopez28/Page2Screen
 
@@ -121,8 +125,10 @@ main                                 # línea principal (incluye docs PIA tras m
 
 ## Documentación del PIA
 
-Bitácora de IA, docs de API y brief de Copilot se entregan por **MS Teams** (carpeta local `docs/`, ignorada por Git).  
+Entrega por **MS Teams** (carpeta local `docs/`, ignorada por Git): bitácora de IA, API, Lighthouse/Axe, heurísticas y checklist de entrega.  
 Variables de entorno: [`.env.example`](.env.example).
+
+**Para Teams:** URL pública + repo + `docs/BITACORA_IA.md` + `docs/API.md` (+ capturas y `docs/LIGHTHOUSE_AXE.md`).
 
 ---
 

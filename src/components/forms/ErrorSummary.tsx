@@ -23,6 +23,8 @@ export default function ErrorSummary({ errors }: ErrorSummaryProps) {
             ref={containerRef}
             tabIndex={-1}
             role="alert"
+            aria-live="assertive"
+            aria-atomic="true"
             className="mb-6 p-4 border-2 border-error dark:border-[var(--color-error)] bg-error/10 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-error"
         >
             <div className="flex items-center gap-2 text-error dark:text-[var(--color-error)] mb-2 font-bold">

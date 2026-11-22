@@ -34,7 +34,9 @@ export default function AddWorkPage() {
   const debouncedQuery = useDebounce(query, 400);
 
   useEffect(() => {
-    if (selectedWork && query === selectedWork.title) {
+    // Con obra ya elegida (p. ej. desde “Escribir reseña”) no relanzar búsqueda TMDB/Books
+    if (selectedWork) {
+      setResults([]);
       return;
     }
 
@@ -43,13 +45,26 @@ export default function AddWorkPage() {
       return;
     }
 
+    let cancelled = false;
     const fetchResults = async () => {
-      const res = type === 'book' ? await searchBooks(debouncedQuery) : await searchMovies(debouncedQuery);
-      setResults(res.slice(0, 5));
-      setActiveIndex(-1);
+      try {
+        const res =
+          type === 'book' ? await searchBooks(debouncedQuery) : await searchMovies(debouncedQuery);
+        if (!cancelled) {
+          setResults(res.slice(0, 8));
+          setActiveIndex(-1);
+        }
+      } catch {
+        if (!cancelled) {
+          setResults([]);
+        }
+      }
     };
     fetchResults();
-  }, [debouncedQuery, type, selectedWork, query]);
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, type, selectedWork]);
 
   const pickResult = (res: SearchResult) => {
     setSelectedWork(res);
@@ -80,11 +95,15 @@ export default function AddWorkPage() {
     const newErrors: string[] = [];
 
     if (!selectedWork) {
-      newErrors.push('Debes seleccionar una obra válida de la lista.');
+      newErrors.push(
+        'Falta el título. Busca la obra y elige un resultado de la lista (no basta con escribir el nombre).',
+      );
     }
 
     if (status === 'done' && rating === 0) {
-      newErrors.push('Debes calificar la obra si ya la consumiste.');
+      newErrors.push(
+        'Falta la calificación. Marca al menos media estrella si ya leíste o viste la obra.',
+      );
     }
 
     setErrors(newErrors);
@@ -115,8 +134,7 @@ export default function AddWorkPage() {
 
     addWork(newWork);
     setShowToast(true);
-    const next = status === 'pending' ? '/listas' : '/perfil';
-    setTimeout(() => navigate(next), 1200);
+    setTimeout(() => navigate('/'), 1200);
   };
 
   return (

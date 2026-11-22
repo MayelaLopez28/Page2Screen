@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { Work, Friend } from '../types';
 import { getItem, setItem } from '../utils/storage';
+import { bumpRecSession } from '../utils/recommendationPrefs';
 import {
   SAMPLE_ACCOUNTS,
   PRIMARY_USER_ID,
   createBlankAccount,
+  findAccountByHandle,
   getSampleSuggestions,
   sampleAccountToFriend,
   seedAccounts,
@@ -20,6 +22,7 @@ interface LibraryState {
   currentUserId: string;
   accounts: UserAccount[];
   friendSuggestions: UserAccount[];
+  isLoggedIn: boolean;
   addWork: (work: Work) => void;
   updateWork: (id: string, updates: Partial<Work>) => void;
   removeWork: (id: string) => void;
@@ -29,35 +32,58 @@ interface LibraryState {
   setProfileName: (name: string) => void;
   setProfileHandle: (handle: string) => void;
   setProfileBio: (bio: string) => void;
-  createUser: (name: string, handle?: string, bio?: string) => void;
-  switchUser: (userId: string) => void;
+  /** Crea cuenta con contraseña. Devuelve error o null si OK. */
+  createUser: (
+    name: string,
+    handle: string,
+    password: string,
+    bio?: string,
+  ) => string | null;
+  /** Login con usuario + contraseña. Devuelve error o null si OK. */
+  loginWithCredentials: (handle: string, password: string) => string | null;
+  logout: () => void;
 }
 
 const LibraryContext = createContext<LibraryState | undefined>(undefined);
 
-const ACCOUNTS_KEY = 'p2s_accounts_v2';
-const CURRENT_KEY = 'p2s_current_user_v2';
+const ACCOUNTS_KEY = 'p2s_accounts_v4';
+const CURRENT_KEY = 'p2s_current_user_v4';
+const SESSION_KEY = 'p2s_session_v4';
+
+function normalizeAccounts(list: UserAccount[]): UserAccount[] {
+  return list.map((account) => ({
+    ...account,
+    password: account.password || 'page2screen',
+    works: account.works || [],
+    friends: account.friends || [],
+  }));
+}
 
 function loadInitialState() {
   const storedAccounts = getItem<UserAccount[] | null>(ACCOUNTS_KEY, null);
   const storedCurrent = localStorage.getItem(CURRENT_KEY);
+  const sessionRaw = localStorage.getItem(SESSION_KEY);
+  const isLoggedIn = sessionRaw === '1';
 
   if (!storedAccounts || storedAccounts.length === 0) {
-    return seedAccounts();
+    const seeded = seedAccounts();
+    return { ...seeded, isLoggedIn: false };
   }
 
+  const accounts = normalizeAccounts(storedAccounts);
   const currentUserId =
-    storedCurrent && storedAccounts.some((a) => a.id === storedCurrent)
+    storedCurrent && accounts.some((a) => a.id === storedCurrent)
       ? storedCurrent
-      : storedAccounts[0].id;
+      : accounts[0].id;
 
-  return { accounts: storedAccounts, currentUserId };
+  return { accounts, currentUserId, isLoggedIn };
 }
 
 export function LibraryProvider({ children }: { children: React.ReactNode }) {
   const initial = loadInitialState();
   const [accounts, setAccounts] = useState<UserAccount[]>(initial.accounts);
   const [currentUserId, setCurrentUserId] = useState(initial.currentUserId);
+  const [isLoggedIn, setIsLoggedIn] = useState(initial.isLoggedIn);
 
   const currentUser = useMemo(
     () => accounts.find((a) => a.id === currentUserId) || accounts[0] || SAMPLE_ACCOUNTS[0],
@@ -71,6 +97,10 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localStorage.setItem(CURRENT_KEY, currentUserId);
   }, [currentUserId]);
+
+  useEffect(() => {
+    localStorage.setItem(SESSION_KEY, isLoggedIn ? '1' : '0');
+  }, [isLoggedIn]);
 
   const patchCurrent = (updater: (account: UserAccount) => UserAccount) => {
     setAccounts((prev) =>
@@ -114,7 +144,7 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       SAMPLE_ACCOUNTS.find((a) => a.id === accountId);
 
     if (!suggested || suggested.id === currentUserId) {
-        return;
+      return;
     }
 
     addFriend(sampleAccountToFriend(suggested));
@@ -132,16 +162,53 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
   const setProfileBio = (bio: string) =>
     patchCurrent((account) => ({ ...account, bio: bio.trim() || account.bio }));
 
-  const createUser = (name: string, handle?: string, bio?: string) => {
-    const account = createBlankAccount(name, handle, bio);
+  const createUser = (
+    name: string,
+    handle: string,
+    password: string,
+    bio?: string,
+  ): string | null => {
+    if (name.trim().length < 2) {
+      return 'El nombre debe tener al menos 2 caracteres.';
+    }
+    if (password.trim().length < 4) {
+      return 'La contraseña debe tener al menos 4 caracteres.';
+    }
+    const cleanHandle = handle.trim().replace(/^@/, '').toLowerCase();
+    if (!cleanHandle) {
+      return 'El usuario (@handle) es obligatorio.';
+    }
+    if (findAccountByHandle(accounts, cleanHandle)) {
+      return 'Ese usuario ya existe. Elige otro handle.';
+    }
+
+    const account = createBlankAccount(name, cleanHandle, password.trim(), bio);
     setAccounts((prev) => [...prev, account]);
     setCurrentUserId(account.id);
+    setIsLoggedIn(true);
+    bumpRecSession(account.id);
+    return null;
   };
 
-  const switchUser = (userId: string) => {
-    if (accounts.some((a) => a.id === userId)) {
-      setCurrentUserId(userId);
+  const loginWithCredentials = (handle: string, password: string): string | null => {
+    if (!handle.trim()) {
+      return 'Falta el usuario. Escribe tu @handle e inténtalo de nuevo.';
     }
+    if (!password) {
+      return 'Falta la contraseña. Escríbela e inténtalo de nuevo.';
+    }
+    const account = findAccountByHandle(accounts, handle);
+    if (!account || account.password !== password) {
+      return 'Usuario o contraseña incorrectos. Revisa los datos e inténtalo de nuevo.';
+    }
+    setCurrentUserId(account.id);
+    setIsLoggedIn(true);
+    bumpRecSession(account.id);
+    return null;
+  };
+
+  const logout = () => {
+    setIsLoggedIn(false);
   };
 
   const friendSuggestions = useMemo(
@@ -152,14 +219,15 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
   return (
     <LibraryContext.Provider
       value={{
-        works: currentUser.works,
-        friends: currentUser.friends,
+        works: isLoggedIn ? currentUser.works : [],
+        friends: isLoggedIn ? currentUser.friends : [],
         profileName: currentUser.name,
         profileHandle: currentUser.handle,
         profileBio: currentUser.bio,
         currentUserId: currentUser.id,
         accounts,
-        friendSuggestions,
+        friendSuggestions: isLoggedIn ? friendSuggestions : [],
+        isLoggedIn,
         addWork,
         updateWork,
         removeWork,
@@ -170,7 +238,8 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
         setProfileHandle,
         setProfileBio,
         createUser,
-        switchUser,
+        loginWithCredentials,
+        logout,
       }}
     >
       {children}

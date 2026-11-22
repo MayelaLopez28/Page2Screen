@@ -58,10 +58,7 @@ export default function StarRating({
   return (
     <div className="flex items-center gap-2">
       <div
-        className={clsx(
-          'flex items-center gap-0.5',
-          !readonly && 'focus-within:ring-2 focus-within:ring-offset-2 rounded-sm',
-        )}
+        className={clsx('flex items-center gap-1', !readonly && 'rounded-sm focus-within:ring-2 focus-within:ring-offset-2')}
         role={readonly ? 'img' : 'slider'}
         aria-label={readonly ? `${formatRating(value)} de 5 estrellas` : ariaLabel}
         aria-valuemin={readonly ? undefined : step}
@@ -85,7 +82,6 @@ export default function StarRating({
                 if (readonly || !onChange) {
                   return;
                 }
-
                 onChange(valueFromPointer(star, e));
               }}
               onMouseMove={(e) => {
@@ -94,17 +90,31 @@ export default function StarRating({
               }}
               onMouseLeave={() => !readonly && setHoverValue(0)}
               className={clsx(
-                'relative focus:outline-none transition-transform active:scale-90 motion-reduce:transition-none',
-                readonly ? 'cursor-default p-0.5' : 'cursor-pointer p-2 border border-[var(--border-color)] bg-[var(--bg-surface)]',
+                'relative inline-flex shrink-0 items-center justify-center p-0 border-0 bg-transparent focus:outline-none',
+                readonly ? 'cursor-default' : 'cursor-pointer hover:scale-105 active:scale-95',
               )}
+              style={{ width: size, height: size }}
             >
-              <Star size={size} className="text-[var(--border-color)]" fill="transparent" />
+              {/* Contorno vacío */}
+              <Star
+                size={size}
+                strokeWidth={1.5}
+                className="absolute inset-0 text-[var(--border-color)]"
+                fill="none"
+                aria-hidden
+              />
+              {/* Relleno recortado (alineado al mismo tamaño; sin inset que desfase) */}
               <span
-                className="absolute inset-0.5 overflow-hidden text-[var(--color-star)]"
+                className="absolute left-0 top-0 h-full overflow-hidden"
                 style={{ width: fillPercent }}
-                aria-hidden="true"
+                aria-hidden
               >
-                <Star size={size} fill="currentColor" className="text-[var(--color-star)]" />
+                <Star
+                  size={size}
+                  strokeWidth={1.5}
+                  className="text-[var(--color-star,#C4A035)]"
+                  fill="currentColor"
+                />
               </span>
             </button>
           );
