@@ -7,11 +7,16 @@ Plataforma web responsive que conecta **libros y películas**: tracker personal,
 
 ---
 
-## Participación (individual)
+## Participación
 
-| Integrante | Participación |
+**Modalidad: trabajo individual** (no hubo equipo).  
+Autora única: **Mayela López**.
+
+| Autora | Rol / qué hice (100 % del PIA) |
 |---|---|
-| Mayela López | Desarrollo de pantallas y servicios, integración de APIs, uso crítico de IA (bitácora), documentación y despliegue |
+| Mayela López | Diseño e implementación de pantallas y componentes; servicios TMDB y Google Books (`fetch` + `async/await`); uso crítico de IA generativa (bitácora); variables de entorno y proxy; documentación; despliegue en Vercel y verificación en producción |
+
+No hay coautores ni división de tareas con otra persona.
 
 ---
 
@@ -33,8 +38,7 @@ Plataforma web responsive que conecta **libros y películas**: tracker personal,
 
 ```bash
 npm install
-cp .env.example .env   # PowerShell: Copy-Item .env.example .env
-# Completa las variables (ver tabla abajo)
+# Crea un .env local con las variables de la tabla (no se sube al repo)
 npm run dev
 ```
 
@@ -56,7 +60,7 @@ npm run dev
 | `TMDB_TOKEN` | Solo servidor (Vercel) | Sí, si usas proxy | Token secreto para `api/tmdb/[...path].js` (sin `VITE_`) |
 | `VITE_GOOGLE_BOOKS_KEY` | Cliente (Vite) | No | API key de Google Books |
 
-Plantilla: [`.env.example`](.env.example).  
+Las variables se configuran en un `.env` local o en el panel del hosting. **No hay `.env` / `.env.example` en el repositorio.**  
 Sin claves, la app arranca en **modo demostración** (mock / catálogo local) y avisa por consola.
 
 ### Limitación conocida — seguridad del token
@@ -118,7 +122,7 @@ Implementación con `fetch` + `async/await` + JSON en `src/services/`.
 ```
 main                                 # línea principal (incluye docs PIA tras merge)
  ├── feature/copilot-ui-work-detail  # 9a9c77e — mejora UI Work Detail
- └── feature/pia-docs-deploy-api     # bitácora, API.md, README, .env.example, vercel, proxy, fix getBookDetails
+ └── feature/pia-docs-deploy-api     # docs PIA, README, vercel, proxy, fix getBookDetails
 ```
 
 ---
@@ -126,7 +130,7 @@ main                                 # línea principal (incluye docs PIA tras m
 ## Documentación del PIA
 
 Entrega por **MS Teams** (carpeta local `docs/`, ignorada por Git): bitácora de IA, API, Lighthouse/Axe, heurísticas y checklist de entrega.  
-Variables de entorno: [`.env.example`](.env.example).
+Variables de entorno: tabla de arriba (solo en local/hosting, no en Git).
 
 **Para Teams:** URL pública + repo + `docs/BITACORA_IA.md` + `docs/API.md` (+ capturas y `docs/LIGHTHOUSE_AXE.md`).
 
@@ -145,5 +149,5 @@ api/
   tmdb/[...path].js    # proxy serverless TMDB (Vercel)
 vercel.json            # rewrite SPA
 public/_redirects      # rewrite SPA (Netlify)
-.env.example           # plantilla de variables
 ```
+
