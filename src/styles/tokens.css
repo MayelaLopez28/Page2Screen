@@ -4,7 +4,7 @@
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
   --color-ink: #1c1c1c;
-  --color-muted: #6b6b6b;
+  --color-muted: #4f4f4f;
   --color-line: #d8d4cb;
   --color-paper: #f2f0e9;
   --color-paper-2: #eae7df;
@@ -21,7 +21,8 @@
   --bg-surface-elevated: #ffffff;
   --bg-chip: #ebe8e0;
   --text-primary: #1c1c1c;
-  --text-secondary: #6b6b6b;
+  /* #4f4f4f ≥ 4.5:1 sobre papel (#f2f0e9) y chip (#ebe8e0) — WCAG AA */
+  --text-secondary: #4f4f4f;
   --border-color: #d0cbc0;
   --accent: #1c1c1c;
   --accent-soft: #3a3a3a;

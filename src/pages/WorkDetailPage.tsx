@@ -380,7 +380,7 @@ export default function WorkDetailPage() {
 
         <div className="min-w-0 w-full">
           <div className="border-b border-[var(--border-color)] pb-4 sm:pb-8">
-            <p className="label-mono text-[var(--text-secondary)] opacity-75 mb-2">
+            <p className="label-mono text-[var(--text-secondary)] mb-2">
               {genreLabel} · {formatYear(detail.year)}
             </p>
             <h1 className="font-heading font-bold text-3xl sm:text-4xl lg:text-5xl xl:text-6xl leading-[1.1] tracking-tight mb-2">
