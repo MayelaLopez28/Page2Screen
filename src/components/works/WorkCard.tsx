@@ -23,6 +23,7 @@ export default function WorkCard({ work, showRating = true }: WorkCardProps) {
     <article className="flex flex-col gap-3">
       <Link
         to={workPath(work.type, work.id)}
+        aria-label={work.title}
         className="group block focus-visible:ring-2 rounded-sm"
       >
         <div className="relative aspect-[3/4] w-full overflow-hidden bg-[var(--bg-chip)] cover-spine">
@@ -31,7 +32,7 @@ export default function WorkCard({ work, showRating = true }: WorkCardProps) {
             title={work.title}
             creator={work.creator}
             type={work.type}
-            alt={`Portada de ${work.title}`}
+            alt=""
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
           />
         </div>
