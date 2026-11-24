@@ -314,6 +314,7 @@ export default function WorkDetailPage() {
     }
     navigate('/anadir', {
       state: {
+        lockedReview: true,
         prefill: {
           id: workId,
           type: detail!.type,

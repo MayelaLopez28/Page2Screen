@@ -170,12 +170,14 @@ export default function OpinionList({
             <div className="space-y-4">
               <p className="font-heading text-sm">Tu opinión</p>
               <div>
-                <p className="label-mono text-[var(--text-secondary)] mb-2">Calificación</p>
+                <p className="label-mono text-[var(--text-secondary)] mb-2">
+                  Calificación (obligatoria)
+                </p>
                 <StarRating value={rating} onChange={setRating} size={26} step={0.5} />
               </div>
               <div>
                 <label htmlFor="new-opinion" className="label-mono text-[var(--text-secondary)] mb-2 block">
-                  Texto (opcional)
+                  Reseña (opcional)
                 </label>
                 <textarea
                   id="new-opinion"
@@ -183,7 +185,7 @@ export default function OpinionList({
                   onChange={(e) => setText(e.target.value)}
                   rows={4}
                   className="w-full border border-[var(--border-color)] bg-transparent p-3 font-mono text-sm outline-none focus:border-[var(--text-primary)]"
-                  placeholder="¿Qué te pareció?"
+                  placeholder="Si quieres, cuenta qué te pareció..."
                 />
               </div>
               {error ? (

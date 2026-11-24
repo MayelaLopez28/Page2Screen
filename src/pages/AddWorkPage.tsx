@@ -12,12 +12,20 @@ import { searchMovies } from '../services/tmdb';
 import { searchBooks } from '../services/openLibrary';
 import { useDebounce } from '../hooks/useDebounce';
 
+type LocationState = {
+  prefill?: SearchResult;
+  /** Llegó desde “Escribir reseña” en una ficha: bloquea tipo/título. */
+  lockedReview?: boolean;
+};
+
 export default function AddWorkPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { addWork, isLoggedIn } = useLibrary();
 
-  const initialData = (location.state as { prefill?: SearchResult } | null)?.prefill;
+  const locationState = (location.state as LocationState | null) || null;
+  const initialData = locationState?.prefill;
+  const lockedReview = Boolean(locationState?.lockedReview && initialData);
 
   const [type, setType] = useState<WorkType>(initialData?.type || 'book');
   const [query, setQuery] = useState(initialData?.title || '');
@@ -34,8 +42,7 @@ export default function AddWorkPage() {
   const debouncedQuery = useDebounce(query, 400);
 
   useEffect(() => {
-    // Con obra ya elegida (p. ej. desde “Escribir reseña”) no relanzar búsqueda TMDB/Books
-    if (selectedWork) {
+    if (lockedReview || selectedWork) {
       setResults([]);
       return;
     }
@@ -64,7 +71,7 @@ export default function AddWorkPage() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, type, selectedWork]);
+  }, [debouncedQuery, type, selectedWork, lockedReview]);
 
   const pickResult = (res: SearchResult) => {
     setSelectedWork(res);
@@ -74,7 +81,7 @@ export default function AddWorkPage() {
   };
 
   const handleResultKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (results.length === 0 || selectedWork) {
+    if (lockedReview || results.length === 0 || selectedWork) {
       return;
     }
 
@@ -93,6 +100,7 @@ export default function AddWorkPage() {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const newErrors: string[] = [];
+    const noteText = notes.trim();
 
     if (!selectedWork) {
       newErrors.push(
@@ -106,6 +114,12 @@ export default function AddWorkPage() {
       );
     }
 
+    if (!noteText) {
+      newErrors.push(
+        'Falta la reseña. Escribe al menos un comentario sobre la obra.',
+      );
+    }
+
     setErrors(newErrors);
 
     if (newErrors.length > 0) {
@@ -113,7 +127,6 @@ export default function AddWorkPage() {
     }
 
     setIsSaving(true);
-    const noteText = notes.trim();
     const newWork: Work = {
       id: selectedWork!.id,
       type: selectedWork!.type,
@@ -123,13 +136,11 @@ export default function AddWorkPage() {
       coverUrl: selectedWork!.coverUrl,
       status,
       rating: status === 'done' ? rating : undefined,
-      notes: noteText
-        ? spoiler
-          ? `[Spoiler] ${noteText}`
-          : noteText
-        : undefined,
+      notes: spoiler ? `[Spoiler] ${noteText}` : noteText,
       genres: selectedWork!.genres?.length ? selectedWork!.genres : [],
       addedAt: Date.now(),
+      consumedCount: status === 'done' ? 1 : undefined,
+      consumptionDates: status === 'done' ? [Date.now()] : undefined,
     };
 
     if (!isLoggedIn) {
@@ -217,72 +228,99 @@ export default function AddWorkPage() {
       <ErrorSummary errors={errors} />
 
       <form onSubmit={handleSubmit} className="space-y-8" noValidate>
-        <fieldset>
-          <legend className="label-mono text-[var(--text-secondary)] mb-3">Tipo de obra</legend>
-          <TypeToggle
-            value={type}
-            onChange={(t) => {
-              setType(t);
-              setSelectedWork(null);
-              setQuery('');
-              setResults([]);
-            }}
-          />
-        </fieldset>
+        {lockedReview && selectedWork ? (
+          <div className="flex gap-4 items-start border border-[var(--border-color)] bg-[var(--bg-surface)] p-4">
+            <div className="w-16 h-24 overflow-hidden shrink-0 bg-[var(--bg-chip)]">
+              <CoverImage
+                src={selectedWork.coverUrl}
+                title={selectedWork.title}
+                creator={selectedWork.creator}
+                type={selectedWork.type}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="label-mono text-[var(--text-secondary)] mb-1">
+                {selectedWork.type === 'book' ? 'Libro' : 'Película'}
+              </p>
+              <p className="font-heading text-xl leading-snug">{selectedWork.title}</p>
+              <p className="text-sm font-mono text-[var(--text-secondary)] mt-1">
+                {selectedWork.creator}
+                {selectedWork.year ? ` · ${selectedWork.year}` : ''}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <fieldset>
+              <legend className="label-mono text-[var(--text-secondary)] mb-3">Tipo de obra</legend>
+              <TypeToggle
+                value={type}
+                onChange={(t) => {
+                  setType(t);
+                  setSelectedWork(null);
+                  setQuery('');
+                  setResults([]);
+                }}
+              />
+            </fieldset>
 
-        <div className="relative">
-          <label htmlFor="title-search" className="label-mono block mb-2">
-            Título (obligatorio)
-          </label>
-          <input
-            id="title-search"
-            type="text"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setSelectedWork(null);
-            }}
-            onKeyDown={handleResultKeyDown}
-            placeholder={`Buscar ${type === 'book' ? 'libro' : 'película'}...`}
-            className="w-full h-12 px-0 bg-transparent border-b border-[var(--border-color)] focus:border-[var(--text-primary)] outline-none"
-            autoComplete="off"
-          />
-          {selectedWork && (
-            <p className="mt-2 text-xs text-[var(--text-secondary)] font-mono">
-              Seleccionado: {selectedWork.title} · {selectedWork.creator}
-            </p>
-          )}
-          {results.length > 0 && !selectedWork && (
-            <ul className="absolute top-full mt-1 w-full bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] z-10 max-h-60 overflow-y-auto">
-              {results.map((res, index) => (
-                <li
-                  key={res.id}
-                  onClick={() => pickResult(res)}
-                  className={`p-3 flex gap-3 cursor-pointer border-b border-[var(--border-color)] last:border-0 ${
-                    index === activeIndex ? 'bg-[var(--bg-chip)]' : 'hover:bg-[var(--bg-chip)]'
-                  }`}
-                >
-                  <div className="w-10 h-14 overflow-hidden shrink-0 bg-[var(--bg-chip)]">
-                    <CoverImage
-                      src={res.coverUrl}
-                      title={res.title}
-                      creator={res.creator}
-                      type={res.type}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div>
-                    <p className="font-heading text-sm">{res.title}</p>
-                    <p className="text-xs text-[var(--text-secondary)]">
-                      {res.creator} · {res.year}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+            <div className="relative">
+              <label htmlFor="title-search" className="label-mono block mb-2">
+                Buscar título
+              </label>
+              <input
+                id="title-search"
+                type="text"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setSelectedWork(null);
+                }}
+                onKeyDown={handleResultKeyDown}
+                placeholder={`Buscar ${type === 'book' ? 'libro' : 'película'}...`}
+                className="w-full h-12 px-0 bg-transparent border-b border-[var(--border-color)] focus:border-[var(--text-primary)] outline-none"
+                autoComplete="off"
+              />
+              {selectedWork && (
+                <p className="mt-2 text-xs text-[var(--text-secondary)] font-mono">
+                  Seleccionado: {selectedWork.title} · {selectedWork.creator}
+                </p>
+              )}
+              {results.length > 0 && !selectedWork && (
+                <ul className="absolute top-full mt-1 w-full bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] z-10 max-h-60 overflow-y-auto">
+                  {results.map((res, index) => (
+                    <li
+                      key={res.id}
+                      onClick={() => pickResult(res)}
+                      className={`p-3 flex gap-3 cursor-pointer border-b border-[var(--border-color)] last:border-0 ${
+                        index === activeIndex ? 'bg-[var(--bg-chip)]' : 'hover:bg-[var(--bg-chip)]'
+                      }`}
+                    >
+                      <div className="w-10 h-14 overflow-hidden shrink-0 bg-[var(--bg-chip)]">
+                        <CoverImage
+                          src={res.coverUrl}
+                          title={res.title}
+                          creator={res.creator}
+                          type={res.type}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div>
+                        <p className="font-heading text-sm">{res.title}</p>
+                        <p className="text-xs text-[var(--text-secondary)]">
+                          {res.creator} · {res.year}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </>
+        )}
 
         <fieldset>
           <legend className="label-mono mb-3">Estado</legend>
@@ -290,10 +328,6 @@ export default function AddWorkPage() {
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="radio" checked={status === 'done'} onChange={() => setStatus('done')} />
               {type === 'book' ? 'Leído' : 'Visto'}
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" checked={status === 'pending'} onChange={() => setStatus('pending')} />
-              {type === 'book' ? 'Por leer' : 'Por ver'}
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="radio" checked={status === 'dnf'} onChange={() => setStatus('dnf')} />
@@ -311,13 +345,14 @@ export default function AddWorkPage() {
 
         <div>
           <label htmlFor="notes" className="label-mono block mb-2">
-            Tu reseña (opcional)
+            Tu reseña (obligatoria)
           </label>
           <textarea
             id="notes"
             rows={5}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+            required
             className="w-full p-4 bg-[var(--bg-surface)] border border-[var(--border-color)] outline-none focus:border-[var(--text-primary)] resize-y font-mono text-sm"
             placeholder="Cuéntanos qué te pareció..."
           />
