@@ -10,6 +10,7 @@ import AuthPrompt from '../components/feedback/AuthPrompt';
 import OpinionList from '../components/social/OpinionList';
 import CrossSuggestionBox from '../components/recommendations/CrossSuggestionBox';
 import SimilarWorks from '../components/recommendations/SimilarWorks';
+import BackButton from '../components/layout/BackButton';
 import { useRecommendation } from '../hooks/useRecommendation';
 import { useSimilarWorks } from '../hooks/useSimilarWorks';
 import { formatRegisteredDate, formatYear } from '../utils/format';
@@ -255,8 +256,8 @@ export default function WorkDetailPage() {
     return (
       <div className="py-20 text-center space-y-4">
         <p className="font-heading text-2xl">Obra no encontrada</p>
-        <Link to="/" className="label-mono underline">
-          Volver al catálogo
+        <Link to="/" className="btn-outline min-h-11 px-5 inline-flex">
+          ← Volver
         </Link>
       </div>
     );
@@ -338,13 +339,6 @@ export default function WorkDetailPage() {
 
   const goWriteReview = () => goLockedForm('review');
   const goMarkDone = () => goLockedForm('markDone');
-  const goBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/');
-    }
-  };
 
   const handleSaveOpinion = (rating: number, text: string) => {
     if (!isLoggedIn) {
@@ -405,14 +399,8 @@ export default function WorkDetailPage() {
 
   return (
     <div className="animate-in fade-in pb-16">
-      <div className="flex flex-wrap items-center gap-4 mb-6 sm:mb-8">
-        <button
-          type="button"
-          onClick={goBack}
-          className="label-mono text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-        >
-          ← Volver
-        </button>
+      <div className="flex flex-col items-start gap-3 mb-6 sm:mb-8">
+        <BackButton />
         <nav
           aria-label="Migas de pan"
           className="label-mono text-[var(--text-secondary)]"

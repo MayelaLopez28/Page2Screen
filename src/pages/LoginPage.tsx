@@ -273,8 +273,8 @@ export default function LoginPage() {
 
       {isLoggedIn && (
         <p className="text-center text-xs font-mono text-[var(--text-secondary)] mt-8">
-          <Link to="/perfil" className="underline text-[var(--text-primary)]">
-            Volver a mi perfil
+          <Link to="/perfil" className="btn-outline min-h-11 px-5 inline-flex">
+            ← Volver
           </Link>
         </p>
       )}

@@ -12,6 +12,7 @@ import { searchMovies } from '../services/tmdb';
 import { searchBooks } from '../services/openLibrary';
 import { useDebounce } from '../hooks/useDebounce';
 import { workPath } from '../utils/routes';
+import BackButton from '../components/layout/BackButton';
 
 type ReviewIntent = 'review' | 'markDone';
 
@@ -280,13 +281,7 @@ export default function AddWorkPage() {
 
   return (
     <div className="w-full max-w-2xl mx-auto animate-in fade-in">
-      <button
-        type="button"
-        onClick={() => navigate(-1)}
-        className="label-mono text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-      >
-        ← Volver
-      </button>
+      <BackButton />
 
       <p className="label-mono text-center text-[var(--text-secondary)] mt-8 mb-2">
         Comparte tu opinión
