@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useLibrary } from '../context/LibraryContext';
 import type { Work, WorkType, WorkStatus, SearchResult } from '../types';
 import TypeToggle from '../components/forms/TypeToggle';
@@ -15,7 +15,7 @@ import { useDebounce } from '../hooks/useDebounce';
 export default function AddWorkPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { addWork } = useLibrary();
+  const { addWork, isLoggedIn } = useLibrary();
 
   const initialData = (location.state as { prefill?: SearchResult } | null)?.prefill;
 
@@ -132,10 +132,67 @@ export default function AddWorkPage() {
       addedAt: Date.now(),
     };
 
+    if (!isLoggedIn) {
+      navigate('/entrar', {
+        replace: true,
+        state: {
+          reason:
+            'Para guardar una reseña o añadir una obra a tu lista necesitas iniciar sesión o crear una cuenta.',
+          from: `${location.pathname}${location.search}`,
+        },
+      });
+      return;
+    }
+
     addWork(newWork);
     setShowToast(true);
     setTimeout(() => navigate('/'), 1200);
   };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="animate-in fade-in max-w-lg mx-auto py-16 text-center space-y-6">
+        <p className="label-mono text-[var(--text-secondary)]">Sesión requerida</p>
+        <h1 className="font-heading text-3xl sm:text-4xl">Antes de continuar</h1>
+        <p className="text-sm font-mono text-[var(--text-secondary)] leading-relaxed">
+          Para escribir una reseña o añadir una obra a tu lista necesitas iniciar sesión o crear
+          una cuenta.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+          <Link
+            to="/entrar"
+            state={{
+              reason:
+                'Para escribir una reseña o añadir una obra a tu lista necesitas iniciar sesión o crear una cuenta.',
+              from: '/anadir',
+            }}
+            className="btn-solid min-h-11 px-6 justify-center"
+          >
+            Iniciar sesión
+          </Link>
+          <Link
+            to="/entrar"
+            state={{
+              openNewSession: true,
+              reason:
+                'Para escribir una reseña o añadir una obra a tu lista necesitas iniciar sesión o crear una cuenta.',
+              from: '/anadir',
+            }}
+            className="btn-outline min-h-11 px-6 justify-center"
+          >
+            Crear cuenta
+          </Link>
+        </div>
+        <p className="text-xs font-mono text-[var(--text-secondary)] pt-4">
+          También puedes{' '}
+          <Link to="/" className="underline text-[var(--text-primary)]">
+            explorar el catálogo
+          </Link>{' '}
+          sin iniciar sesión.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-2xl mx-auto animate-in fade-in">

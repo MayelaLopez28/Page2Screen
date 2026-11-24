@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useLibrary } from '../context/LibraryContext';
 import { getMovieDetails } from '../services/tmdb';
 import { getBookDetails } from '../services/openLibrary';
@@ -30,6 +30,7 @@ type DetailView = {
 export default function WorkDetailPage() {
   const { tipo, id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { works, friends, profileName, addWork, updateWork, isLoggedIn } = useLibrary();
 
   const [detail, setDetail] = useState<DetailView | null>(null);
@@ -38,6 +39,15 @@ export default function WorkDetailPage() {
   const [toastMsg, setToastMsg] = useState('');
   const [editRequestKey, setEditRequestKey] = useState(0);
   const opinionsRef = useRef<HTMLElement | null>(null);
+
+  const requireSession = (reason: string) => {
+    navigate('/entrar', {
+      state: {
+        reason,
+        from: `${location.pathname}${location.search}`,
+      },
+    });
+  };
 
   const routeId = decodeURIComponent(id || '');
   const workId =
@@ -247,6 +257,12 @@ export default function WorkDetailPage() {
   }
 
   const handleQuickAdd = () => {
+    if (!isLoggedIn) {
+      requireSession(
+        'Para guardar una obra en tu lista necesitas iniciar sesión o crear una cuenta.',
+      );
+      return;
+    }
     addWork({
       id: workId,
       type: detail.type,
@@ -264,6 +280,12 @@ export default function WorkDetailPage() {
 
   const handleCrossAdd = (suggested: Partial<Work>) => {
     if (!suggested.id || !suggested.type || !suggested.title) return;
+    if (!isLoggedIn) {
+      requireSession(
+        'Para guardar una obra en tu lista necesitas iniciar sesión o crear una cuenta.',
+      );
+      return;
+    }
     addWork({
       id: suggested.id,
       type: suggested.type,
@@ -280,13 +302,47 @@ export default function WorkDetailPage() {
   };
 
   const openOpinionEditor = () => {
+    if (!isLoggedIn) {
+      requireSession(
+        'Para escribir o actualizar una reseña necesitas iniciar sesión o crear una cuenta.',
+      );
+      return;
+    }
     setEditRequestKey((n) => n + 1);
     window.requestAnimationFrame(() => {
       opinionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   };
 
+  const goWriteReview = () => {
+    if (!isLoggedIn) {
+      requireSession(
+        'Para escribir una reseña necesitas iniciar sesión o crear una cuenta.',
+      );
+      return;
+    }
+    navigate('/anadir', {
+      state: {
+        prefill: {
+          id: workId,
+          type: detail!.type,
+          title: detail!.title,
+          creator: detail!.creator,
+          year: formatYear(detail!.year),
+          coverUrl: detail!.coverUrl,
+          genres: detail!.genreIds,
+        },
+      },
+    });
+  };
+
   const handleSaveOpinion = (rating: number, text: string) => {
+    if (!isLoggedIn) {
+      requireSession(
+        'Para guardar tu opinión necesitas iniciar sesión o crear una cuenta.',
+      );
+      return;
+    }
     const now = Date.now();
     if (localWork) {
       const prevCount = localWork.consumedCount || (localWork.status === 'done' ? 1 : 0);
@@ -325,6 +381,12 @@ export default function WorkDetailPage() {
   };
 
   const handleReconsume = () => {
+    if (!isLoggedIn) {
+      requireSession(
+        'Para registrar que volviste a leerla o verla, inicia sesión o crea una cuenta.',
+      );
+      return;
+    }
     if (!localWork) return;
     const now = Date.now();
     const prev = localWork.consumedCount || 1;
@@ -467,21 +529,7 @@ export default function WorkDetailPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() =>
-                    navigate('/anadir', {
-                      state: {
-                        prefill: {
-                          id: workId,
-                          type: detail.type,
-                          title: detail.title,
-                          creator: detail.creator,
-                          year: formatYear(detail.year),
-                          coverUrl: detail.coverUrl,
-                          genres: detail.genreIds,
-                        },
-                      },
-                    })
-                  }
+                  onClick={goWriteReview}
                   className="btn-solid min-h-11 px-5 shrink-0"
                 >
                   Escribir reseña
@@ -516,21 +564,7 @@ export default function WorkDetailPage() {
               <div className="flex flex-row flex-wrap items-center gap-3">
                 <button
                   type="button"
-                  onClick={() =>
-                    navigate('/anadir', {
-                      state: {
-                        prefill: {
-                          id: workId,
-                          type: detail.type,
-                          title: detail.title,
-                          creator: detail.creator,
-                          year: formatYear(detail.year),
-                          coverUrl: detail.coverUrl,
-                          genres: detail.genreIds,
-                        },
-                      },
-                    })
-                  }
+                  onClick={goWriteReview}
                   className="btn-solid min-h-11 px-5 shrink-0"
                 >
                   Escribir reseña
@@ -544,6 +578,23 @@ export default function WorkDetailPage() {
                 </button>
               </div>
             )}
+            {!isLoggedIn ? (
+              <p className="text-sm font-mono text-[var(--text-secondary)]">
+                Para guardar en tu lista o escribir una reseña,{' '}
+                <Link to="/entrar" state={{ from: location.pathname }} className="underline text-[var(--text-primary)]">
+                  inicia sesión
+                </Link>{' '}
+                o{' '}
+                <Link
+                  to="/entrar"
+                  state={{ openNewSession: true, from: location.pathname }}
+                  className="underline text-[var(--text-primary)]"
+                >
+                  crea una cuenta
+                </Link>
+                .
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

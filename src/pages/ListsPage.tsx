@@ -15,12 +15,25 @@ export default function ListsPage() {
           cuenta o crea un perfil nuevo.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-          <Link to="/entrar" className="btn-solid min-h-11 px-6 justify-center">
+          <Link
+            to="/entrar"
+            state={{
+              reason:
+                'Para ver lo que tienes por leer o por ver necesitas iniciar sesión o crear una cuenta.',
+              from: '/listas',
+            }}
+            className="btn-solid min-h-11 px-6 justify-center"
+          >
             Iniciar sesión
           </Link>
           <Link
             to="/entrar"
-            state={{ openNewSession: true }}
+            state={{
+              openNewSession: true,
+              reason:
+                'Para ver lo que tienes por leer o por ver necesitas iniciar sesión o crear una cuenta.',
+              from: '/listas',
+            }}
             className="btn-outline min-h-11 px-6 justify-center"
           >
             Crear perfil

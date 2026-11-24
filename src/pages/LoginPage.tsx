@@ -9,9 +9,12 @@ type Mode = 'login' | 'register';
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const openRegister = Boolean(
-    (location.state as { openNewSession?: boolean } | null)?.openNewSession,
-  );
+  const locationState = location.state as
+    | { openNewSession?: boolean; reason?: string; from?: string }
+    | null;
+  const openRegister = Boolean(locationState?.openNewSession);
+  const authReason = locationState?.reason?.trim() || '';
+  const redirectAfterAuth = locationState?.from || '/perfil';
   const { loginWithCredentials, createUser, isLoggedIn, profileName } = useLibrary();
 
   const [mode, setMode] = useState<Mode>(openRegister ? 'register' : 'login');
@@ -45,7 +48,7 @@ export default function LoginPage() {
       setErrorMsg(err);
       return;
     }
-    navigate('/perfil');
+    navigate(redirectAfterAuth, { replace: true });
   };
 
   const handleRegister = (e: FormEvent) => {
@@ -56,7 +59,7 @@ export default function LoginPage() {
       setErrorMsg(err);
       return;
     }
-    navigate('/perfil');
+    navigate(redirectAfterAuth, { replace: true });
   };
 
   const passwordInput = (
@@ -102,11 +105,21 @@ export default function LoginPage() {
       <h1 className="font-heading text-3xl sm:text-4xl text-center mb-3">
         {mode === 'login' ? 'Iniciar sesión' : 'Crear perfil'}
       </h1>
-      <p className="text-center text-sm text-[var(--text-secondary)] font-mono mb-8">
+      <p className="text-center text-sm text-[var(--text-secondary)] font-mono mb-6">
         {isLoggedIn
           ? `Sesión actual: ${profileName}. Puedes entrar con otra cuenta o crear un perfil nuevo.`
           : 'Ingresa con tu usuario y contraseña, o crea una cuenta nueva.'}
       </p>
+
+      {authReason ? (
+        <div
+          className="mb-8 border border-[var(--border-color)] bg-[var(--bg-chip)] px-4 py-3 text-sm font-mono text-[var(--text-primary)]"
+          role="status"
+          aria-live="polite"
+        >
+          {authReason}
+        </div>
+      ) : null}
 
       <div className="flex gap-2 mb-8 border-b border-[var(--border-color)] pb-3">
         <button
