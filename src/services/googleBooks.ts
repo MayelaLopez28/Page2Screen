@@ -141,6 +141,7 @@ function toSearchResult(b: (typeof CATALOG_BOOKS)[number]): SearchResult {
     creator: b.creator,
     year: b.year,
     coverUrl: b.coverUrl,
+    coverFallbacks: b.coverFallbacks,
     genres: b.genres,
   };
 }

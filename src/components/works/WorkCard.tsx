@@ -29,6 +29,7 @@ export default function WorkCard({ work, showRating = true }: WorkCardProps) {
         <div className="relative aspect-[3/4] w-full overflow-hidden bg-[var(--bg-chip)] cover-spine">
           <CoverImage
             src={work.coverUrl}
+            fallbacks={work.coverFallbacks}
             title={work.title}
             creator={work.creator}
             type={work.type}

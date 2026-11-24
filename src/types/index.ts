@@ -8,6 +8,8 @@ export interface Work {
   creator: string;
   year: string;
   coverUrl?: string;
+  /** Portadas alternativas si la principal falla (p. ej. Open Library). */
+  coverFallbacks?: string[];
   genres: string[];
   status: WorkStatus;
   rating?: number;
@@ -34,5 +36,6 @@ export interface SearchResult {
   creator: string;
   year: string;
   coverUrl?: string;
+  coverFallbacks?: string[];
   genres?: string[];
 }

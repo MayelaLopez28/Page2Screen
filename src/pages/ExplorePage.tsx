@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { discoverMoviesByGenre, getTrendingMovies } from '../services/tmdb';
-import { getTrendingBooks, searchBooksBySubject } from '../services/openLibrary';
+import { getTrendingBooks } from '../services/openLibrary';
 import {
   getCrossRecommendationsForLibrary,
   type CrossRecommendation,
@@ -70,22 +70,28 @@ export default function ExplorePage() {
           addedAt: Date.now(),
         }));
 
+        const catalogByTitle = new Map(
+          CATALOG_BOOKS.map((b) => [b.title.toLowerCase(), b]),
+        );
+
         const books: Work[] = (booksData || [])
           .map((b: Record<string, any>) => {
             const rawId = String(b.id || b.key || '');
             const id = rawId.startsWith('b_')
               ? rawId
               : `b_isbn_${rawId.replace('/works/', '').replace(/^b_/, '')}`;
+            const catalog = catalogByTitle.get(String(b.title || '').toLowerCase());
             return {
-              id,
+              id: catalog?.id || id,
               type: 'book' as const,
               title: b.title,
               creator: b.creator || b.author_name?.[0] || 'Autor Desconocido',
               year: b.year?.toString?.() || b.first_publish_year?.toString() || '2024',
-              coverUrl: b.coverUrl,
-              genres: b.genres?.length ? b.genres : ['fiction'],
+              coverUrl: catalog?.coverUrl || b.coverUrl,
+              coverFallbacks: catalog?.coverFallbacks,
+              genres: b.genres?.length ? b.genres : catalog?.genres || ['fiction'],
               status: 'pending' as const,
-              rating: typeof b.rating === 'number' ? b.rating : 4.4,
+              rating: typeof b.rating === 'number' ? b.rating : catalog?.rating ?? 4.4,
               addedAt: Date.now(),
             };
           })
@@ -150,6 +156,7 @@ export default function ExplorePage() {
           creator: b.creator,
           year: b.year,
           coverUrl: b.coverUrl,
+          coverFallbacks: b.coverFallbacks,
           genres: b.genres || [genre],
           status: 'pending' as const,
           rating: b.rating ?? 4.3,
@@ -168,11 +175,6 @@ export default function ExplorePage() {
         const movieLists = await Promise.all(
           plan.tmdbIds.map((id) =>
             discoverMoviesByGenre(id).catch(() => [] as Record<string, unknown>[]),
-          ),
-        );
-        const bookLists = await Promise.all(
-          plan.bookSubjects.map((subject) =>
-            searchBooksBySubject(subject).catch(() => [] as Record<string, unknown>[]),
           ),
         );
 
@@ -201,40 +203,8 @@ export default function ExplorePage() {
           })
           .filter((m) => Boolean(m.coverUrl) && Boolean(m.title));
 
-        const books: Work[] = bookLists
-          .flat()
-          .slice(0, 36)
-          .map((b: Record<string, any>) => {
-            const key = String(b.key || b.id || '').replace('/works/', '');
-            const id = key.startsWith('b_')
-              ? key
-              : /^\d{10,13}$/.test(key)
-                ? `b_isbn_${key}`
-                : `b_gb_${key}`;
-            return {
-              id,
-              type: 'book' as const,
-              title: b.title,
-              creator: b.authors?.[0]?.name || b.creator || 'Autor Desconocido',
-              year: b.first_publish_year?.toString?.() || b.year || '',
-              coverUrl: b.coverUrl,
-              genres: Array.from(new Set([genre, ...(b.genres || [])])),
-              status: 'pending' as const,
-              rating: 4.3,
-              addedAt: Date.now(),
-            };
-          })
-          .filter((b) => {
-            if (!b.title || !b.coverUrl || b.id === 'b_gb_') return false;
-            // Evitar portadas ISBN rotas de Open Library y placeholders de Google
-            if (b.coverUrl.includes('covers.openlibrary.org/b/isbn/')) return false;
-            return true;
-          });
-
-        // Catálogo local primero; remotas solo si no duplican título
-        const seededTitles = new Set(seededBooks.map((b) => b.title.toLowerCase()));
-        const remoteBooks = books.filter((b) => !seededTitles.has(b.title.toLowerCase()));
-        setGenreBoost([...seededBooks, ...seededMovies, ...remoteBooks, ...movies]);
+        // Libros: solo catálogo curado (portadas verificadas).
+        setGenreBoost([...seededBooks, ...seededMovies, ...movies]);
       } finally {
         if (!cancelled) setGenreLoading(false);
       }
@@ -255,7 +225,10 @@ export default function ExplorePage() {
   }, [trending, genreBoost]);
 
   const byGenre = useMemo(
-    () => catalogPool.filter((w) => workMatchesGenre(w.genres, genre)),
+    () =>
+      catalogPool.filter(
+        (w) => Boolean(w.coverUrl) && workMatchesGenre(w.genres, genre),
+      ),
     [catalogPool, genre],
   );
 

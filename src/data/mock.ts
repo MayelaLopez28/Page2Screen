@@ -145,7 +145,7 @@ export const mockWorks: MockWork[] = [
     aliases: ['Neuromancer', 'Neuromante'],
     creator: 'William Gibson',
     year: '1984',
-    coverUrl: 'https://covers.openlibrary.org/b/isbn/9780441569595-L.jpg',
+    coverUrl: 'https://covers.openlibrary.org/b/id/9251990-L.jpg',
     genres: ['science_fiction', 'cyberpunk'],
     status: 'pending',
     addedAt: Date.now() - 50000,
