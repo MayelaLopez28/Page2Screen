@@ -39,7 +39,6 @@ export default function WorkDetailPage() {
   const [showToast, setShowToast] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [authPrompt, setAuthPrompt] = useState<string | null>(null);
-  const [editRequestKey, setEditRequestKey] = useState(0);
   const opinionsRef = useRef<HTMLElement | null>(null);
 
   const requireSession = (reason: string) => {
@@ -296,25 +295,19 @@ export default function WorkDetailPage() {
     setShowToast(true);
   };
 
-  const openOpinionEditor = () => {
+  const goLockedForm = (intent: 'review' | 'markDone') => {
     if (!isLoggedIn) {
-      requireSession('¿Quieres escribir una reseña? Inicia sesión o crea una cuenta.');
-      return;
-    }
-    setEditRequestKey((n) => n + 1);
-    window.requestAnimationFrame(() => {
-      opinionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  };
-
-  const goWriteReview = () => {
-    if (!isLoggedIn) {
-      requireSession('¿Quieres escribir una reseña? Inicia sesión o crea una cuenta.');
+      requireSession(
+        intent === 'markDone'
+          ? `¿Quieres marcar esta obra como ${detail!.type === 'book' ? 'leída' : 'vista'}? Inicia sesión o crea una cuenta.`
+          : '¿Quieres escribir una reseña? Inicia sesión o crea una cuenta.',
+      );
       return;
     }
     navigate('/anadir', {
       state: {
         lockedReview: true,
+        intent,
         prefill: {
           id: workId,
           type: detail!.type,
@@ -327,6 +320,9 @@ export default function WorkDetailPage() {
       },
     });
   };
+
+  const goWriteReview = () => goLockedForm('review');
+  const goMarkDone = () => goLockedForm('markDone');
 
   const handleSaveOpinion = (rating: number, text: string) => {
     if (!isLoggedIn) {
@@ -390,11 +386,11 @@ export default function WorkDetailPage() {
     });
     setToastMsg(
       isBook
-        ? '✓ Nueva lectura registrada. Puedes cambiar tu nota o dejarla igual.'
-        : '✓ Nuevo visionado registrado. Puedes cambiar tu nota o dejarla igual.',
+        ? '✓ Nueva lectura registrada. Puedes actualizar tu nota y reseña.'
+        : '✓ Nuevo visionado registrado. Puedes actualizar tu nota y reseña.',
     );
     setShowToast(true);
-    openOpinionEditor();
+    goLockedForm('review');
   };
 
   const isBook = detail.type === 'book';
@@ -524,7 +520,7 @@ export default function WorkDetailPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={openOpinionEditor}
+                  onClick={goMarkDone}
                   className="btn-outline min-h-11 px-5 shrink-0"
                 >
                   Marcar como {isBook ? 'leída' : 'vista'}
@@ -535,7 +531,7 @@ export default function WorkDetailPage() {
                 <span className="pill pointer-events-none shrink-0">Lo dejaste (DNF)</span>
                 <button
                   type="button"
-                  onClick={openOpinionEditor}
+                  onClick={goWriteReview}
                   className="btn-solid min-h-11 px-5 shrink-0"
                 >
                   Actualizar opinión
@@ -603,9 +599,8 @@ export default function WorkDetailPage() {
           <OpinionList
             opinions={opinions}
             editableId={isLoggedIn ? 'me' : undefined}
-            canCreate={isLoggedIn}
+            canCreate={false}
             onSaveOpinion={isLoggedIn ? handleSaveOpinion : undefined}
-            editRequestKey={editRequestKey}
           />
         </section>
       </div>

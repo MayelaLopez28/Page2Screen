@@ -10,8 +10,13 @@ import { workPath } from '../../utils/routes';
 import CoverImage from '../works/CoverImage';
 import {
   dismissRecId,
+  formatPauseRemaining,
   getDismissedRecIds,
   getRecSession,
+  isRecPaused,
+  recordRecDismiss,
+  REC_DISMISS_STREAK_LIMIT,
+  resetRecDismissStreak,
 } from '../../utils/recommendationPrefs';
 
 type Pair = CrossRecommendation & { source: Work };
@@ -26,6 +31,8 @@ export default function CrossBridge({ dismissible = false }: CrossBridgeProps) {
   const [pair, setPair] = useState<Pair | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [pauseUntil, setPauseUntil] = useState<number | null>(null);
+  const [justPaused, setJustPaused] = useState(false);
   const session = getRecSession(currentUserId);
 
   useEffect(() => {
@@ -33,6 +40,21 @@ export default function CrossBridge({ dismissible = false }: CrossBridgeProps) {
 
     async function load() {
       setLoading(true);
+      setJustPaused(false);
+
+      if (dismissible) {
+        const pause = isRecPaused(currentUserId);
+        if (pause.paused) {
+          if (!cancelled) {
+            setPauseUntil(pause.pauseUntil);
+            setPair(null);
+            setLoading(false);
+          }
+          return;
+        }
+        setPauseUntil(null);
+      }
+
       const dismissed = getDismissedRecIds(currentUserId);
       const pairs = await getCrossRecommendationsForLibrary(works, 8, {
         excludeSuggestionIds: dismissed,
@@ -56,19 +78,49 @@ export default function CrossBridge({ dismissible = false }: CrossBridgeProps) {
     return () => {
       cancelled = true;
     };
-  }, [works, currentUserId, session, refreshToken]);
+  }, [works, currentUserId, session, refreshToken, dismissible]);
 
   const handleDismiss = () => {
     const suggestionId = pair?.suggestion?.id;
     if (!suggestionId) return;
     dismissRecId(currentUserId, suggestionId);
+    const result = recordRecDismiss(currentUserId);
+    if (result.paused) {
+      setPauseUntil(result.pauseUntil);
+      setJustPaused(true);
+      setPair(null);
+      return;
+    }
     setRefreshToken((n) => n + 1);
+  };
+
+  const handleAcceptClick = () => {
+    resetRecDismissStreak(currentUserId);
   };
 
   if (loading) {
     return (
       <section className="my-10 border border-[var(--border-color)] p-6 sm:p-8 animate-pulse">
         <p className="label-mono text-[var(--text-secondary)]">Buscando puente cultural...</p>
+      </section>
+    );
+  }
+
+  if (dismissible && pauseUntil && Date.now() < pauseUntil) {
+    return (
+      <section
+        className="my-10 border border-dashed border-[var(--border-color)] p-6 sm:p-8"
+        role="status"
+        aria-live="polite"
+      >
+        <p className="label-mono text-[var(--text-secondary)] mb-2">Recomendaciones cruzadas</p>
+        <h2 className="font-heading text-2xl sm:text-3xl mb-3">Pausa por un rato</h2>
+        <p className="text-sm font-mono text-[var(--text-secondary)] max-w-2xl leading-relaxed">
+          {justPaused
+            ? `Rechazaste ${REC_DISMISS_STREAK_LIMIT} sugerencias seguidas, así que dejamos de recomendar por ahora.`
+            : `Las recomendaciones están en pausa porque rechazaste ${REC_DISMISS_STREAK_LIMIT} seguidas.`}{' '}
+          Vuelven en unos {formatPauseRemaining(pauseUntil)}.
+        </p>
       </section>
     );
   }
@@ -171,6 +223,7 @@ export default function CrossBridge({ dismissible = false }: CrossBridgeProps) {
             <Link
               to={workPath(targetType, suggestion.id)}
               className="btn-solid justify-center"
+              onClick={handleAcceptClick}
             >
               Ver recomendación
             </Link>

@@ -12,10 +12,14 @@ import { searchMovies } from '../services/tmdb';
 import { searchBooks } from '../services/openLibrary';
 import { useDebounce } from '../hooks/useDebounce';
 
+type ReviewIntent = 'review' | 'markDone';
+
 type LocationState = {
   prefill?: SearchResult;
-  /** Llegó desde “Escribir reseña” en una ficha: bloquea tipo/título. */
+  /** Llegó desde la ficha: bloquea tipo/título. */
   lockedReview?: boolean;
+  /** review = reseña obligatoria; markDone = marcar leída/vista (texto opcional). */
+  intent?: ReviewIntent;
 };
 
 export default function AddWorkPage() {
@@ -26,6 +30,8 @@ export default function AddWorkPage() {
   const locationState = (location.state as LocationState | null) || null;
   const initialData = locationState?.prefill;
   const lockedReview = Boolean(locationState?.lockedReview && initialData);
+  const intent: ReviewIntent = locationState?.intent === 'markDone' ? 'markDone' : 'review';
+  const notesRequired = intent === 'review';
 
   const [type, setType] = useState<WorkType>(initialData?.type || 'book');
   const [query, setQuery] = useState(initialData?.title || '');
@@ -108,13 +114,16 @@ export default function AddWorkPage() {
       );
     }
 
-    if (status === 'done' && rating === 0) {
+    const effectiveStatus: WorkStatus =
+      intent === 'markDone' && lockedReview ? 'done' : status;
+
+    if (effectiveStatus === 'done' && rating === 0) {
       newErrors.push(
         'Falta la calificación. Marca al menos media estrella si ya leíste o viste la obra.',
       );
     }
 
-    if (!noteText) {
+    if (notesRequired && !noteText) {
       newErrors.push(
         'Falta la reseña. Escribe al menos un comentario sobre la obra.',
       );
@@ -134,13 +143,17 @@ export default function AddWorkPage() {
       creator: selectedWork!.creator,
       year: selectedWork!.year,
       coverUrl: selectedWork!.coverUrl,
-      status,
-      rating: status === 'done' ? rating : undefined,
-      notes: spoiler ? `[Spoiler] ${noteText}` : noteText,
+      status: effectiveStatus,
+      rating: effectiveStatus === 'done' ? rating : undefined,
+      notes: noteText
+        ? spoiler
+          ? `[Spoiler] ${noteText}`
+          : noteText
+        : undefined,
       genres: selectedWork!.genres?.length ? selectedWork!.genres : [],
       addedAt: Date.now(),
-      consumedCount: status === 'done' ? 1 : undefined,
-      consumptionDates: status === 'done' ? [Date.now()] : undefined,
+      consumedCount: effectiveStatus === 'done' ? 1 : undefined,
+      consumptionDates: effectiveStatus === 'done' ? [Date.now()] : undefined,
     };
 
     if (!isLoggedIn) {
@@ -219,10 +232,18 @@ export default function AddWorkPage() {
         Comparte tu opinión
       </p>
       <h1 className="font-heading text-3xl sm:text-4xl text-center mb-3">
-        {selectedWork ? `Escribir reseña · ${selectedWork.title}` : 'Añadir obra'}
+        {lockedReview && selectedWork
+          ? intent === 'markDone'
+            ? `Marcar como ${selectedWork.type === 'book' ? 'leída' : 'vista'} · ${selectedWork.title}`
+            : `Escribir reseña · ${selectedWork.title}`
+          : selectedWork
+            ? `Escribir reseña · ${selectedWork.title}`
+            : 'Añadir obra'}
       </h1>
       <p className="text-center text-sm text-[var(--text-secondary)] font-mono mb-10">
-        Tu experiencia puede ayudar a otros a elegir su próxima lectura o película.
+        {intent === 'markDone' && lockedReview
+          ? 'Califica la obra. La reseña es opcional.'
+          : 'Tu experiencia puede ayudar a otros a elegir su próxima lectura o película.'}
       </p>
 
       <ErrorSummary errors={errors} />
@@ -322,21 +343,35 @@ export default function AddWorkPage() {
           </>
         )}
 
-        <fieldset>
-          <legend className="label-mono mb-3">Estado</legend>
-          <div className="flex flex-wrap gap-4 text-sm font-mono">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" checked={status === 'done'} onChange={() => setStatus('done')} />
-              {type === 'book' ? 'Leído' : 'Visto'}
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" checked={status === 'dnf'} onChange={() => setStatus('dnf')} />
-              Lo dejé (DNF)
-            </label>
-          </div>
-        </fieldset>
+        {intent === 'markDone' && lockedReview ? (
+          <p className="label-mono text-[var(--text-secondary)]">
+            Estado: {type === 'book' ? 'Leído' : 'Visto'}
+          </p>
+        ) : (
+          <fieldset>
+            <legend className="label-mono mb-3">Estado</legend>
+            <div className="flex flex-wrap gap-4 text-sm font-mono">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={status === 'done'}
+                  onChange={() => setStatus('done')}
+                />
+                {type === 'book' ? 'Leído' : 'Visto'}
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={status === 'dnf'}
+                  onChange={() => setStatus('dnf')}
+                />
+                Lo dejé (DNF)
+              </label>
+            </div>
+          </fieldset>
+        )}
 
-        {status === 'done' && (
+        {(status === 'done' || (intent === 'markDone' && lockedReview)) && (
           <div>
             <p className="label-mono mb-3">Calificación (obligatoria)</p>
             <StarRating value={rating} onChange={setRating} size={28} step={0.5} />
@@ -345,7 +380,7 @@ export default function AddWorkPage() {
 
         <div>
           <label htmlFor="notes" className="label-mono block mb-2">
-            Tu reseña (obligatoria)
+            Tu reseña {notesRequired ? '(obligatoria)' : '(opcional)'}
           </label>
           <textarea
             id="notes"
@@ -376,7 +411,13 @@ export default function AddWorkPage() {
             Cancelar
           </button>
           <button type="submit" disabled={isSaving} className="btn-solid disabled:opacity-50">
-            {isSaving ? 'Guardando...' : 'Publicar reseña'}
+            {isSaving
+              ? 'Guardando...'
+              : intent === 'markDone' && lockedReview
+                ? type === 'book'
+                  ? 'Marcar como leída'
+                  : 'Marcar como vista'
+                : 'Publicar reseña'}
           </button>
         </div>
       </form>
