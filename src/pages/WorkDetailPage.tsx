@@ -6,6 +6,7 @@ import { getBookDetails } from '../services/openLibrary';
 import StarRating from '../components/forms/StarRating';
 import CoverImage from '../components/works/CoverImage';
 import Toast from '../components/feedback/Toast';
+import AuthPrompt from '../components/feedback/AuthPrompt';
 import OpinionList from '../components/social/OpinionList';
 import CrossSuggestionBox from '../components/recommendations/CrossSuggestionBox';
 import SimilarWorks from '../components/recommendations/SimilarWorks';
@@ -37,17 +38,15 @@ export default function WorkDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showToast, setShowToast] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+  const [authPrompt, setAuthPrompt] = useState<string | null>(null);
   const [editRequestKey, setEditRequestKey] = useState(0);
   const opinionsRef = useRef<HTMLElement | null>(null);
 
   const requireSession = (reason: string) => {
-    navigate('/entrar', {
-      state: {
-        reason,
-        from: `${location.pathname}${location.search}`,
-      },
-    });
+    setAuthPrompt(reason);
   };
+
+  const authFrom = `${location.pathname}${location.search}`;
 
   const routeId = decodeURIComponent(id || '');
   const workId =
@@ -258,9 +257,7 @@ export default function WorkDetailPage() {
 
   const handleQuickAdd = () => {
     if (!isLoggedIn) {
-      requireSession(
-        'Para guardar una obra en tu lista necesitas iniciar sesión o crear una cuenta.',
-      );
+      requireSession('¿Quieres guardar esta obra en tu lista? Inicia sesión o crea una cuenta.');
       return;
     }
     addWork({
@@ -281,9 +278,7 @@ export default function WorkDetailPage() {
   const handleCrossAdd = (suggested: Partial<Work>) => {
     if (!suggested.id || !suggested.type || !suggested.title) return;
     if (!isLoggedIn) {
-      requireSession(
-        'Para guardar una obra en tu lista necesitas iniciar sesión o crear una cuenta.',
-      );
+      requireSession('¿Quieres guardar esta obra en tu lista? Inicia sesión o crea una cuenta.');
       return;
     }
     addWork({
@@ -303,9 +298,7 @@ export default function WorkDetailPage() {
 
   const openOpinionEditor = () => {
     if (!isLoggedIn) {
-      requireSession(
-        'Para escribir o actualizar una reseña necesitas iniciar sesión o crear una cuenta.',
-      );
+      requireSession('¿Quieres escribir una reseña? Inicia sesión o crea una cuenta.');
       return;
     }
     setEditRequestKey((n) => n + 1);
@@ -316,9 +309,7 @@ export default function WorkDetailPage() {
 
   const goWriteReview = () => {
     if (!isLoggedIn) {
-      requireSession(
-        'Para escribir una reseña necesitas iniciar sesión o crear una cuenta.',
-      );
+      requireSession('¿Quieres escribir una reseña? Inicia sesión o crea una cuenta.');
       return;
     }
     navigate('/anadir', {
@@ -338,9 +329,7 @@ export default function WorkDetailPage() {
 
   const handleSaveOpinion = (rating: number, text: string) => {
     if (!isLoggedIn) {
-      requireSession(
-        'Para guardar tu opinión necesitas iniciar sesión o crear una cuenta.',
-      );
+      requireSession('¿Quieres guardar tu reseña? Inicia sesión o crea una cuenta.');
       return;
     }
     const now = Date.now();
@@ -382,9 +371,7 @@ export default function WorkDetailPage() {
 
   const handleReconsume = () => {
     if (!isLoggedIn) {
-      requireSession(
-        'Para registrar que volviste a leerla o verla, inicia sesión o crea una cuenta.',
-      );
+      requireSession('¿Quieres registrar esta obra otra vez? Inicia sesión o crea una cuenta.');
       return;
     }
     if (!localWork) return;
@@ -578,23 +565,6 @@ export default function WorkDetailPage() {
                 </button>
               </div>
             )}
-            {!isLoggedIn ? (
-              <p className="text-sm font-mono text-[var(--text-secondary)]">
-                Para guardar en tu lista o escribir una reseña,{' '}
-                <Link to="/entrar" state={{ from: location.pathname }} className="underline text-[var(--text-primary)]">
-                  inicia sesión
-                </Link>{' '}
-                o{' '}
-                <Link
-                  to="/entrar"
-                  state={{ openNewSession: true, from: location.pathname }}
-                  className="underline text-[var(--text-primary)]"
-                >
-                  crea una cuenta
-                </Link>
-                .
-              </p>
-            ) : null}
           </div>
         </div>
       </div>
@@ -645,6 +615,13 @@ export default function WorkDetailPage() {
           onClose={() => setShowToast(false)}
         />
       )}
+      {authPrompt ? (
+        <AuthPrompt
+          message={authPrompt}
+          from={authFrom}
+          onClose={() => setAuthPrompt(null)}
+        />
+      ) : null}
     </div>
   );
 }
