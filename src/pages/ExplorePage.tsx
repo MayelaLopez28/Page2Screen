@@ -328,20 +328,23 @@ export default function ExplorePage() {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
         <p className="label-mono text-[var(--text-secondary)]">
-          {totalCount} obras{genreHeading}
+          {filter === 'cross' ? `${totalCount} puentes` : `${totalCount} obras`}
+          {genreHeading}
         </p>
-        <label className="inline-flex items-center gap-2 label-mono text-[var(--text-secondary)]">
-          Ordenar:
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as Sort)}
-            className="bg-transparent border-b border-[var(--border-color)] text-[var(--text-primary)] outline-none py-1"
-          >
-            <option value="rating">mejor valorados</option>
-            <option value="title">título</option>
-            <option value="year">año</option>
-          </select>
-        </label>
+        {filter !== 'cross' ? (
+          <label className="inline-flex items-center gap-2 label-mono text-[var(--text-secondary)]">
+            Ordenar:
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as Sort)}
+              className="bg-transparent border-b border-[var(--border-color)] text-[var(--text-primary)] outline-none py-1"
+            >
+              <option value="rating">mejor valorados</option>
+              <option value="title">título</option>
+              <option value="year">año</option>
+            </select>
+          </label>
+        ) : null}
       </div>
 
       {loading || (genre !== 'all' && genreLoading && books.length + movies.length < 4) ? (

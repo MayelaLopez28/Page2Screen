@@ -12,7 +12,7 @@ import CrossSuggestionBox from '../components/recommendations/CrossSuggestionBox
 import SimilarWorks from '../components/recommendations/SimilarWorks';
 import { useRecommendation } from '../hooks/useRecommendation';
 import { useSimilarWorks } from '../hooks/useSimilarWorks';
-import { formatYear } from '../utils/format';
+import { formatRegisteredDate, formatYear } from '../utils/format';
 import type { Work, WorkType } from '../types';
 
 type DetailView = {
@@ -174,13 +174,20 @@ export default function WorkDetailPage() {
   }, [tipo, id]);
 
   const opinions = useMemo(() => {
-    const list: { id: string; author: string; rating: number; text?: string }[] = [];
+    const list: {
+      id: string;
+      author: string;
+      rating: number;
+      text?: string;
+      spoiler?: boolean;
+    }[] = [];
     if (localWork?.rating || localWork?.notes) {
       list.push({
         id: 'me',
         author: `${profileName} (tú)`,
         rating: localWork.rating || 0,
         text: localWork.notes,
+        spoiler: localWork.spoiler,
       });
     }
     friends.forEach((friend) => {
@@ -191,6 +198,7 @@ export default function WorkDetailPage() {
           author: friend.name,
           rating: shared.rating || 0,
           text: shared.notes,
+          spoiler: shared.spoiler,
         });
       }
     });
@@ -295,7 +303,10 @@ export default function WorkDetailPage() {
     setShowToast(true);
   };
 
-  const goLockedForm = (intent: 'review' | 'markDone') => {
+  const goLockedForm = (
+    intent: 'review' | 'markDone',
+    opts?: { reconsume?: boolean },
+  ) => {
     if (!isLoggedIn) {
       requireSession(
         intent === 'markDone'
@@ -308,6 +319,10 @@ export default function WorkDetailPage() {
       state: {
         lockedReview: true,
         intent,
+        reconsume: Boolean(opts?.reconsume),
+        existingRating: localWork?.rating,
+        existingNotes: localWork?.notes,
+        existingSpoiler: localWork?.spoiler,
         prefill: {
           id: workId,
           type: detail!.type,
@@ -323,6 +338,13 @@ export default function WorkDetailPage() {
 
   const goWriteReview = () => goLockedForm('review');
   const goMarkDone = () => goLockedForm('markDone');
+  const goBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/');
+    }
+  };
 
   const handleSaveOpinion = (rating: number, text: string) => {
     if (!isLoggedIn) {
@@ -341,6 +363,7 @@ export default function WorkDetailPage() {
       updateWork(localWork.id, {
         rating,
         notes: text || undefined,
+        spoiler: undefined,
         status: 'done',
         consumedCount: Math.max(1, prevCount),
         consumptionDates: dates,
@@ -372,25 +395,8 @@ export default function WorkDetailPage() {
       return;
     }
     if (!localWork) return;
-    const now = Date.now();
-    const prev = localWork.consumedCount || 1;
-    const prevDates =
-      localWork.consumptionDates?.length
-        ? localWork.consumptionDates
-        : [localWork.addedAt || now];
-    updateWork(localWork.id, {
-      status: 'done',
-      consumedCount: prev + 1,
-      consumptionDates: [...prevDates, now],
-      addedAt: now,
-    });
-    setToastMsg(
-      isBook
-        ? '✓ Nueva lectura registrada. Puedes actualizar tu nota y reseña.'
-        : '✓ Nuevo visionado registrado. Puedes actualizar tu nota y reseña.',
-    );
-    setShowToast(true);
-    goLockedForm('review');
+    // Abre el formulario con calificación/reseña previas; la reseña NO es obligatoria.
+    goLockedForm('markDone', { reconsume: true });
   };
 
   const isBook = detail.type === 'book';
@@ -399,18 +405,27 @@ export default function WorkDetailPage() {
 
   return (
     <div className="animate-in fade-in pb-16">
-      <nav
-        aria-label="Migas de pan"
-        className="label-mono text-[var(--text-secondary)] mb-8 sm:mb-10"
-      >
-        <Link to="/" className="hover:text-[var(--text-primary)]">
-          Catálogo
-        </Link>
-        <span> › </span>
-        <span>{genreLabel}</span>
-        <span> › </span>
-        <span className="text-[var(--text-primary)]">{detail.title}</span>
-      </nav>
+      <div className="flex flex-wrap items-center gap-4 mb-6 sm:mb-8">
+        <button
+          type="button"
+          onClick={goBack}
+          className="label-mono text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+        >
+          ← Volver
+        </button>
+        <nav
+          aria-label="Migas de pan"
+          className="label-mono text-[var(--text-secondary)]"
+        >
+          <Link to="/" className="hover:text-[var(--text-primary)]">
+            Catálogo
+          </Link>
+          <span> › </span>
+          <span>{genreLabel}</span>
+          <span> › </span>
+          <span className="text-[var(--text-primary)]">{detail.title}</span>
+        </nav>
+      </div>
 
       <div className="detail-layout">
         <div className="detail-cover cover-spine">
@@ -492,10 +507,34 @@ export default function WorkDetailPage() {
                   ) : null}
                 </div>
                 <p className="text-sm font-mono text-[var(--text-secondary)]">
-                  Ya {isBook ? 'la leíste' : 'la viste'}. Si {isBook ? 'la leíste' : 'la viste'}{' '}
-                  otra vez, regístralo: podrás cambiar tu calificación y comentario, o dejarlos
-                  como están.
+                  Ya {isBook ? 'la leíste' : 'la viste'}
+                  {!localWork.notes
+                    ? '. Aún no escribiste reseña: puedes añadirla cuando quieras.'
+                    : '. Si la volviste a ver o leer, regístralo y actualiza nota o comentario si quieres.'}
                 </p>
+                {(() => {
+                  const dates = (
+                    localWork.consumptionDates?.length
+                      ? localWork.consumptionDates
+                      : [localWork.addedAt]
+                  )
+                    .slice()
+                    .sort((a, b) => b - a);
+                  if (dates.length === 0) return null;
+                  return (
+                    <ul className="space-y-1 text-sm font-mono text-[var(--text-secondary)]">
+                      <li className="label-mono text-[0.65rem]">Fechas de registro</li>
+                      {dates.map((ts, idx) => (
+                        <li key={`${localWork.id}-d-${ts}-${idx}`}>
+                          {formatRegisteredDate(ts)}
+                          {dates.length > 1
+                            ? ` · ${idx === 0 ? 'más reciente' : `vez ${dates.length - idx}`}`
+                            : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()}
                 <div className="flex flex-row flex-wrap items-center gap-3">
                   <button
                     type="button"
@@ -503,6 +542,13 @@ export default function WorkDetailPage() {
                     className="btn-solid min-h-11 px-5 shrink-0"
                   >
                     Volví a {isBook ? 'leerla' : 'verla'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={goWriteReview}
+                    className="btn-outline min-h-11 px-5 shrink-0"
+                  >
+                    {localWork.notes ? 'Editar reseña' : 'Escribir reseña'}
                   </button>
                 </div>
               </>

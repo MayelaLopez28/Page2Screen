@@ -169,7 +169,7 @@ export async function getMovieDetails(id: string): Promise<Work | Record<string,
     return {
       ...mock,
       title: mock.title,
-      overview: mock.notes || 'Sinopsis de demostración.',
+      overview: mock.notes || 'Sin sinopsis disponible.',
       release_date: mock.year,
       poster_path: null,
       backdrop_path: null,
@@ -198,7 +198,7 @@ export async function getMovieDetails(id: string): Promise<Work | Record<string,
     return mock
       ? {
           ...mock,
-          overview: mock.notes || 'Sinopsis de demostración.',
+          overview: mock.notes || 'Sin sinopsis disponible.',
           release_date: mock.year,
           vote_average: (mock.rating || 4) * 2,
           genres: mock.genres.map((g) => ({ id: Number(g) || 0, name: g })),

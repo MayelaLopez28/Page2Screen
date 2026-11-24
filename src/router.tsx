@@ -1,4 +1,5 @@
 import { createBrowserRouter } from 'react-router-dom';
+import NotificationsPage from './pages/NotificationsPage';
 import App from './App';
 import ExplorePage from './pages/ExplorePage';
 import ListsPage from './pages/ListsPage';
@@ -19,6 +20,7 @@ export const router = createBrowserRouter([
       { path: 'obra/:tipo/:id', element: <WorkDetailPage /> },
       { path: 'anadir', element: <AddWorkPage /> },
       { path: 'perfil', element: <ProfilePage /> },
+      { path: 'notificaciones', element: <NotificationsPage /> },
       { path: 'entrar', element: <LoginPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],

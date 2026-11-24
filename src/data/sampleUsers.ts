@@ -1,4 +1,4 @@
-import type { Friend, Work } from '../types';
+import type { Friend, FriendRequest, AppNotification, Work } from '../types';
 import { mockWorks } from './mock';
 
 export interface UserAccount {
@@ -10,6 +10,10 @@ export interface UserAccount {
   bio: string;
   works: Work[];
   friends: Friend[];
+  /** Solicitudes de amistad recibidas. */
+  friendRequests?: FriendRequest[];
+  /** Notificaciones leídas/no leídas (actividad + solicitudes). */
+  notifications?: AppNotification[];
   isSample?: boolean;
 }
 
@@ -46,6 +50,9 @@ export const PRIMARY_USER_ID = 'u_mayela';
 /** Contraseña compartida de las 3 cuentas demo (no se muestran en la UI). */
 export const DEMO_PASSWORD = 'page2screen';
 
+const andreaWorks = pickWorks('m_8966', 'm_11', 'b_isbn_9780307743657', 'm_694');
+const reginaWorks = pickWorks('m_671', 'm_27205', 'm_70160', 'm_157336');
+
 export const SAMPLE_ACCOUNTS: UserAccount[] = [
   {
     id: PRIMARY_USER_ID,
@@ -54,7 +61,50 @@ export const SAMPLE_ACCOUNTS: UserAccount[] = [
     password: DEMO_PASSWORD,
     bio: 'Fundadora de Page2Screen. Cruza libros y cine sin parar.',
     works: pickWorks('b_isbn_9780441172719', 'm_157336', 'b_isbn_9780553293357', 'm_27205'),
-    friends: [],
+    friends: [
+      {
+        id: 'u_andrea',
+        name: 'Andrea Lopez',
+        handle: 'andrealopez',
+        recentWorks: andreaWorks.slice(0, 3),
+        activity: andreaWorks[0]
+          ? `${andreaWorks[0].type === 'movie' ? 'Vio' : 'Terminó de leer'} ${andreaWorks[0].title}`
+          : 'Activa en Page2Screen',
+        activityAt: 'hace 2 h',
+      },
+    ],
+    friendRequests: [
+      {
+        id: 'req_regina',
+        fromUserId: 'u_regina',
+        fromName: 'Regina Sosa',
+        fromHandle: 'reginasosa',
+        at: Date.now() - 3_600_000,
+      },
+    ],
+    notifications: [
+      {
+        id: 'n_req_regina',
+        type: 'friend_request',
+        title: 'Solicitud de amistad',
+        body: 'Regina Sosa (@reginasosa) quiere unirse a tu círculo.',
+        at: Date.now() - 3_600_000,
+        read: false,
+        requestId: 'req_regina',
+        fromUserId: 'u_regina',
+      },
+      {
+        id: 'n_act_andrea',
+        type: 'friend_activity',
+        title: 'Actividad de Andrea Lopez',
+        body: andreaWorks[0]
+          ? `${andreaWorks[0].type === 'movie' ? 'Vio' : 'Terminó de leer'} ${andreaWorks[0].title}`
+          : 'Publicó una actualización.',
+        at: Date.now() - 7_200_000,
+        read: false,
+        fromUserId: 'u_andrea',
+      },
+    ],
     isSample: true,
   },
   {
@@ -63,8 +113,10 @@ export const SAMPLE_ACCOUNTS: UserAccount[] = [
     handle: 'andrealopez',
     password: DEMO_PASSWORD,
     bio: 'Romance contemporáneo y thrillers de domingo.',
-    works: pickWorks('b_isbn_9780141439518', 'm_11', 'b_isbn_9780307743657', 'm_694'),
+    works: andreaWorks,
     friends: [],
+    friendRequests: [],
+    notifications: [],
     isSample: true,
   },
   {
@@ -73,8 +125,10 @@ export const SAMPLE_ACCOUNTS: UserAccount[] = [
     handle: 'reginasosa',
     password: DEMO_PASSWORD,
     bio: 'Fantasía épica, relecturas y cine de autor.',
-    works: pickWorks('b_isbn_9780547928227', 'm_27205', 'b_isbn_9780439023481', 'm_157336'),
+    works: reginaWorks,
     friends: [],
+    friendRequests: [],
+    notifications: [],
     isSample: true,
   },
 ];
@@ -122,6 +176,8 @@ export function createBlankAccount(
     bio: bio?.trim() || 'Nueva cuenta en Page2Screen.',
     works: [],
     friends: [],
+    friendRequests: [],
+    notifications: [],
     isSample: false,
   };
 }
@@ -131,7 +187,12 @@ export function seedAccounts(): { accounts: UserAccount[]; currentUserId: string
     accounts: SAMPLE_ACCOUNTS.map((account) => ({
       ...account,
       works: account.works.map((w) => ({ ...w })),
-      friends: [],
+      friends: (account.friends || []).map((f) => ({
+        ...f,
+        recentWorks: (f.recentWorks || []).map((w) => ({ ...w })),
+      })),
+      friendRequests: [...(account.friendRequests || [])],
+      notifications: [...(account.notifications || [])],
     })),
     currentUserId: PRIMARY_USER_ID,
   };

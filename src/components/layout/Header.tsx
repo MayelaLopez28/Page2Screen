@@ -4,7 +4,7 @@ import { useLibrary } from '../../context/LibraryContext';
 
 export default function Header() {
   const { pathname } = useLocation();
-  const { isLoggedIn } = useLibrary();
+  const { isLoggedIn, unreadNotifications } = useLibrary();
 
   const navClass = (active: boolean) =>
     `label-mono transition-colors ${
@@ -45,13 +45,27 @@ export default function Header() {
             Mis listas
           </Link>
           {isLoggedIn ? (
-            <Link
-              to="/perfil"
-              className={navClass(pathname === '/perfil')}
-              aria-current={pathname === '/perfil' ? 'page' : undefined}
-            >
-              Perfil
-            </Link>
+            <>
+              <Link
+                to="/notificaciones"
+                className={navClass(pathname === '/notificaciones')}
+                aria-current={pathname === '/notificaciones' ? 'page' : undefined}
+              >
+                Notificaciones
+                {unreadNotifications > 0 ? (
+                  <span className="ml-1 inline-flex min-w-[1.25rem] justify-center rounded-full bg-[var(--text-primary)] text-[var(--bg-app)] text-[0.65rem] px-1.5 py-0.5 tabular-nums">
+                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                  </span>
+                ) : null}
+              </Link>
+              <Link
+                to="/perfil"
+                className={navClass(pathname === '/perfil')}
+                aria-current={pathname === '/perfil' ? 'page' : undefined}
+              >
+                Perfil
+              </Link>
+            </>
           ) : (
             <Link to="/entrar" className="btn-outline">
               Entrar

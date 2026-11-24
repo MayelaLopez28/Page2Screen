@@ -7,6 +7,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/listas': 'Mis listas',
   '/anadir': 'Escribir reseña',
   '/perfil': 'Perfil',
+  '/notificaciones': 'Notificaciones',
   '/entrar': 'Entrar',
 };
 

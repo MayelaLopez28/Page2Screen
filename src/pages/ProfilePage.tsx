@@ -356,8 +356,11 @@ export default function ProfilePage() {
                               className="text-sm font-mono text-[var(--text-primary)]"
                             >
                               {formatRegisteredDate(ts)}
-                              {dates.length > 1 && idx === 0 ? (
-                                <span className="text-[var(--text-secondary)]"> · más reciente</span>
+                              {dates.length > 1 ? (
+                                <span className="text-[var(--text-secondary)]">
+                                  {' '}
+                                  · {idx === 0 ? 'más reciente' : `vez ${dates.length - idx}`}
+                                </span>
                               ) : null}
                             </li>
                           ))}

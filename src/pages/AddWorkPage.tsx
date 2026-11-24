@@ -11,6 +11,7 @@ import CoverImage from '../components/works/CoverImage';
 import { searchMovies } from '../services/tmdb';
 import { searchBooks } from '../services/openLibrary';
 import { useDebounce } from '../hooks/useDebounce';
+import { workPath } from '../utils/routes';
 
 type ReviewIntent = 'review' | 'markDone';
 
@@ -18,19 +19,30 @@ type LocationState = {
   prefill?: SearchResult;
   /** Llegó desde la ficha: bloquea tipo/título. */
   lockedReview?: boolean;
-  /** review = reseña obligatoria; markDone = marcar leída/vista (texto opcional). */
+  /** review = reseña obligatoria; markDone / reconsume = texto opcional. */
   intent?: ReviewIntent;
+  /** Volví a ver/leer: suma fecha de consumo al guardar. */
+  reconsume?: boolean;
+  existingRating?: number;
+  existingNotes?: string;
+  existingSpoiler?: boolean;
 };
+
+function stripSpoilerPrefix(text?: string) {
+  if (!text) return '';
+  return text.replace(/^\[Spoiler\]\s*/i, '');
+}
 
 export default function AddWorkPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { addWork, isLoggedIn } = useLibrary();
+  const { addWork, updateWork, works, isLoggedIn } = useLibrary();
 
   const locationState = (location.state as LocationState | null) || null;
   const initialData = locationState?.prefill;
   const lockedReview = Boolean(locationState?.lockedReview && initialData);
   const intent: ReviewIntent = locationState?.intent === 'markDone' ? 'markDone' : 'review';
+  const reconsume = Boolean(locationState?.reconsume);
   const notesRequired = intent === 'review';
 
   const [type, setType] = useState<WorkType>(initialData?.type || 'book');
@@ -39,9 +51,16 @@ export default function AddWorkPage() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [status, setStatus] = useState<WorkStatus>('done');
-  const [rating, setRating] = useState(0);
-  const [notes, setNotes] = useState('');
-  const [spoiler, setSpoiler] = useState(false);
+  const [rating, setRating] = useState(locationState?.existingRating || 0);
+  const [notes, setNotes] = useState(
+    stripSpoilerPrefix(locationState?.existingNotes) || '',
+  );
+  const [spoiler, setSpoiler] = useState(
+    Boolean(
+      locationState?.existingSpoiler ||
+        /^\[Spoiler\]/i.test(locationState?.existingNotes || ''),
+    ),
+  );
   const [errors, setErrors] = useState<string[]>([]);
   const [showToast, setShowToast] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -103,6 +122,10 @@ export default function AddWorkPage() {
     }
   };
 
+  const goBackToWorkOrHistory = (work: { id: string; type: WorkType }) => {
+    navigate(workPath(work.type, work.id), { replace: true });
+  };
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const newErrors: string[] = [];
@@ -136,25 +159,6 @@ export default function AddWorkPage() {
     }
 
     setIsSaving(true);
-    const newWork: Work = {
-      id: selectedWork!.id,
-      type: selectedWork!.type,
-      title: selectedWork!.title,
-      creator: selectedWork!.creator,
-      year: selectedWork!.year,
-      coverUrl: selectedWork!.coverUrl,
-      status: effectiveStatus,
-      rating: effectiveStatus === 'done' ? rating : undefined,
-      notes: noteText
-        ? spoiler
-          ? `[Spoiler] ${noteText}`
-          : noteText
-        : undefined,
-      genres: selectedWork!.genres?.length ? selectedWork!.genres : [],
-      addedAt: Date.now(),
-      consumedCount: effectiveStatus === 'done' ? 1 : undefined,
-      consumptionDates: effectiveStatus === 'done' ? [Date.now()] : undefined,
-    };
 
     if (!isLoggedIn) {
       navigate('/entrar', {
@@ -168,9 +172,54 @@ export default function AddWorkPage() {
       return;
     }
 
-    addWork(newWork);
+    const now = Date.now();
+    const existing = works.find((w) => w.id === selectedWork!.id);
+    const prevDates =
+      existing?.consumptionDates?.length
+        ? existing.consumptionDates
+        : existing?.status === 'done'
+          ? [existing.addedAt || now]
+          : [];
+    const consumptionDates =
+      effectiveStatus === 'done'
+        ? reconsume
+          ? [...prevDates, now]
+          : prevDates.length
+            ? prevDates
+            : [now]
+        : undefined;
+    const consumedCount =
+      effectiveStatus === 'done'
+        ? reconsume
+          ? (existing?.consumedCount || 1) + 1
+          : Math.max(1, existing?.consumedCount || 1)
+        : undefined;
+
+    const payload: Partial<Work> & Pick<Work, 'id' | 'type' | 'title' | 'creator' | 'year' | 'status' | 'genres' | 'addedAt'> = {
+      id: selectedWork!.id,
+      type: selectedWork!.type,
+      title: selectedWork!.title,
+      creator: selectedWork!.creator,
+      year: selectedWork!.year,
+      coverUrl: selectedWork!.coverUrl,
+      status: effectiveStatus,
+      rating: effectiveStatus === 'done' ? rating : undefined,
+      notes: noteText || undefined,
+      spoiler: noteText ? spoiler : undefined,
+      genres: selectedWork!.genres?.length ? selectedWork!.genres : [],
+      addedAt: reconsume ? now : existing?.addedAt || now,
+      consumedCount,
+      consumptionDates,
+    };
+
+    if (existing) {
+      updateWork(existing.id, payload);
+    } else {
+      addWork(payload as Work);
+    }
+
     setShowToast(true);
-    setTimeout(() => navigate('/'), 1200);
+    setTimeout(() => goBackToWorkOrHistory(selectedWork!), 900);
   };
 
   if (!isLoggedIn) {
@@ -218,6 +267,17 @@ export default function AddWorkPage() {
     );
   }
 
+  const heading =
+    lockedReview && selectedWork
+      ? reconsume
+        ? `Volví a ${selectedWork.type === 'book' ? 'leerla' : 'verla'} · ${selectedWork.title}`
+        : intent === 'markDone'
+          ? `Marcar como ${selectedWork.type === 'book' ? 'leída' : 'vista'} · ${selectedWork.title}`
+          : `Escribir reseña · ${selectedWork.title}`
+      : selectedWork
+        ? `Escribir reseña · ${selectedWork.title}`
+        : 'Añadir obra';
+
   return (
     <div className="w-full max-w-2xl mx-auto animate-in fade-in">
       <button
@@ -231,18 +291,12 @@ export default function AddWorkPage() {
       <p className="label-mono text-center text-[var(--text-secondary)] mt-8 mb-2">
         Comparte tu opinión
       </p>
-      <h1 className="font-heading text-3xl sm:text-4xl text-center mb-3">
-        {lockedReview && selectedWork
-          ? intent === 'markDone'
-            ? `Marcar como ${selectedWork.type === 'book' ? 'leída' : 'vista'} · ${selectedWork.title}`
-            : `Escribir reseña · ${selectedWork.title}`
-          : selectedWork
-            ? `Escribir reseña · ${selectedWork.title}`
-            : 'Añadir obra'}
-      </h1>
+      <h1 className="font-heading text-3xl sm:text-4xl text-center mb-3">{heading}</h1>
       <p className="text-center text-sm text-[var(--text-secondary)] font-mono mb-10">
         {intent === 'markDone' && lockedReview
-          ? 'Califica la obra. La reseña es opcional.'
+          ? reconsume
+            ? 'Puedes actualizar la calificación y la reseña (opcional), o dejarlas como están.'
+            : 'Califica la obra. La reseña es opcional.'
           : 'Tu experiencia puede ayudar a otros a elegir su próxima lectura o película.'}
       </p>
 
@@ -387,7 +441,6 @@ export default function AddWorkPage() {
             rows={5}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            required
             className="w-full p-4 bg-[var(--bg-surface)] border border-[var(--border-color)] outline-none focus:border-[var(--text-primary)] resize-y font-mono text-sm"
             placeholder="Cuéntanos qué te pareció..."
           />
@@ -413,11 +466,13 @@ export default function AddWorkPage() {
           <button type="submit" disabled={isSaving} className="btn-solid disabled:opacity-50">
             {isSaving
               ? 'Guardando...'
-              : intent === 'markDone' && lockedReview
-                ? type === 'book'
-                  ? 'Marcar como leída'
-                  : 'Marcar como vista'
-                : 'Publicar reseña'}
+              : reconsume
+                ? 'Guardar visionado'
+                : intent === 'markDone' && lockedReview
+                  ? type === 'book'
+                    ? 'Marcar como leída'
+                    : 'Marcar como vista'
+                  : 'Publicar reseña'}
           </button>
         </div>
       </form>

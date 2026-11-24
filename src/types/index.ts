@@ -14,6 +14,8 @@ export interface Work {
   status: WorkStatus;
   rating?: number;
   notes?: string;
+  /** Si true, la reseña se muestra tapada hasta que el lector la revele. */
+  spoiler?: boolean;
   consumedCount?: number;
   consumptionDates?: number[];
   addedAt: number;
@@ -28,6 +30,26 @@ export interface Friend {
   activity?: string;
   activityAt?: string;
 }
+
+export type FriendRequest = {
+  id: string;
+  fromUserId: string;
+  fromName: string;
+  fromHandle: string;
+  at: number;
+};
+
+export type AppNotification = {
+  id: string;
+  type: 'friend_request' | 'friend_activity';
+  title: string;
+  body: string;
+  at: number;
+  read: boolean;
+  /** Para solicitudes: id de la petición. */
+  requestId?: string;
+  fromUserId?: string;
+};
 
 export interface SearchResult {
   id: string;

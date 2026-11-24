@@ -6,6 +6,7 @@ export interface Opinion {
   author: string;
   rating: number;
   text?: string;
+  spoiler?: boolean;
 }
 
 interface OpinionListProps {
@@ -18,6 +19,47 @@ interface OpinionListProps {
   editRequestKey?: number;
 }
 
+function SpoilerText({ text, isSpoiler }: { text: string; isSpoiler: boolean }) {
+  const [revealed, setRevealed] = useState(false);
+  const marked =
+    isSpoiler || /^\[Spoiler\]/i.test(text);
+  const clean = text.replace(/^\[Spoiler\]\s*/i, '');
+
+  if (!marked) {
+    return (
+      <p className="text-sm font-mono text-[var(--text-primary)] leading-relaxed mt-2">{clean}</p>
+    );
+  }
+
+  if (!revealed) {
+    return (
+      <div className="mt-2 rounded-sm border border-[var(--border-color)] bg-[var(--bg-chip)] p-4">
+        <p className="label-mono text-[var(--text-secondary)] mb-3">Contiene spoilers</p>
+        <button
+          type="button"
+          className="btn-outline min-h-11 px-4"
+          onClick={() => setRevealed(true)}
+        >
+          Mostrar reseña
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      <button
+        type="button"
+        className="label-mono text-[var(--text-secondary)] underline underline-offset-4"
+        onClick={() => setRevealed(false)}
+      >
+        Ocultar spoilers
+      </button>
+      <p className="text-sm font-mono text-[var(--text-primary)] leading-relaxed">{clean}</p>
+    </div>
+  );
+}
+
 export default function OpinionList({
   opinions,
   editableId,
@@ -28,20 +70,20 @@ export default function OpinionList({
   const mine = opinions.find((o) => o.id === editableId);
   const [editing, setEditing] = useState(false);
   const [rating, setRating] = useState(mine?.rating || 0);
-  const [text, setText] = useState(mine?.text || '');
+  const [text, setText] = useState(mine?.text?.replace(/^\[Spoiler\]\s*/i, '') || '');
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!editing) {
       setRating(mine?.rating || 0);
-      setText(mine?.text || '');
+      setText(mine?.text?.replace(/^\[Spoiler\]\s*/i, '') || '');
       setError('');
     }
   }, [mine?.rating, mine?.text, editing]);
 
   const startEdit = () => {
     setRating(mine?.rating || 0);
-    setText(mine?.text || '');
+    setText(mine?.text?.replace(/^\[Spoiler\]\s*/i, '') || '');
     setError('');
     setEditing(true);
   };
@@ -148,9 +190,7 @@ export default function OpinionList({
                 </div>
               </div>
             ) : op.text ? (
-              <p className="text-sm font-mono text-[var(--text-primary)] leading-relaxed mt-2">
-                {op.text}
-              </p>
+              <SpoilerText text={op.text} isSpoiler={Boolean(op.spoiler)} />
             ) : null}
           </article>
         );

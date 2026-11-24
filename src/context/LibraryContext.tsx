@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import type { Work, Friend } from '../types';
+import type { Work, Friend, FriendRequest, AppNotification } from '../types';
 import { getItem, setItem } from '../utils/storage';
 import { bumpRecSession } from '../utils/recommendationPrefs';
 import {
@@ -16,6 +16,9 @@ import {
 interface LibraryState {
   works: Work[];
   friends: Friend[];
+  friendRequests: FriendRequest[];
+  notifications: AppNotification[];
+  unreadNotifications: number;
   profileName: string;
   profileHandle: string;
   profileBio: string;
@@ -29,6 +32,11 @@ interface LibraryState {
   addFriend: (friend: Friend) => void;
   removeFriend: (id: string) => void;
   addSuggestedFriend: (accountId: string) => void;
+  /** Envía solicitud a una cuenta demo (queda como notificación en el destino). */
+  sendFriendRequest: (accountId: string) => string | null;
+  acceptFriendRequest: (requestId: string) => void;
+  rejectFriendRequest: (requestId: string) => void;
+  markNotificationsRead: () => void;
   setProfileName: (name: string) => void;
   setProfileHandle: (handle: string) => void;
   setProfileBio: (bio: string) => void;
@@ -46,9 +54,9 @@ interface LibraryState {
 
 const LibraryContext = createContext<LibraryState | undefined>(undefined);
 
-const ACCOUNTS_KEY = 'p2s_accounts_v4';
-const CURRENT_KEY = 'p2s_current_user_v4';
-const SESSION_KEY = 'p2s_session_v4';
+const ACCOUNTS_KEY = 'p2s_accounts_v5';
+const CURRENT_KEY = 'p2s_current_user_v5';
+const SESSION_KEY = 'p2s_session_v5';
 
 function normalizeAccounts(list: UserAccount[]): UserAccount[] {
   return list.map((account) => ({
@@ -56,7 +64,17 @@ function normalizeAccounts(list: UserAccount[]): UserAccount[] {
     password: account.password || 'page2screen',
     works: account.works || [],
     friends: account.friends || [],
+    friendRequests: account.friendRequests || [],
+    notifications: account.notifications || [],
   }));
+}
+
+function pushNotification(account: UserAccount, note: AppNotification): UserAccount {
+  const existing = account.notifications || [];
+  return {
+    ...account,
+    notifications: [note, ...existing.filter((n) => n.id !== note.id)].slice(0, 40),
+  };
 }
 
 function loadInitialState() {
@@ -150,6 +168,93 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
     addFriend(sampleAccountToFriend(suggested));
   };
 
+  const sendFriendRequest = (accountId: string): string | null => {
+    const target =
+      accounts.find((a) => a.id === accountId) ||
+      SAMPLE_ACCOUNTS.find((a) => a.id === accountId);
+    if (!target || target.id === currentUserId) {
+      return 'No se pudo enviar la solicitud.';
+    }
+    if (currentUser.friends.some((f) => f.id === target.id)) {
+      return 'Esa persona ya está en tu círculo.';
+    }
+
+    const requestId = `req_${currentUserId}_${target.id}_${Date.now()}`;
+    const request: FriendRequest = {
+      id: requestId,
+      fromUserId: currentUserId,
+      fromName: currentUser.name,
+      fromHandle: currentUser.handle,
+      at: Date.now(),
+    };
+    const note: AppNotification = {
+      id: `n_${requestId}`,
+      type: 'friend_request',
+      title: 'Solicitud de amistad',
+      body: `${currentUser.name} (@${currentUser.handle}) quiere unirse a tu círculo.`,
+      at: Date.now(),
+      read: false,
+      requestId,
+      fromUserId: currentUserId,
+    };
+
+    setAccounts((prev) =>
+      prev.map((account) => {
+        if (account.id !== target.id) return account;
+        const already = (account.friendRequests || []).some(
+          (r) => r.fromUserId === currentUserId,
+        );
+        if (already) return account;
+        return pushNotification(
+          {
+            ...account,
+            friendRequests: [request, ...(account.friendRequests || [])],
+          },
+          note,
+        );
+      }),
+    );
+    return null;
+  };
+
+  const acceptFriendRequest = (requestId: string) => {
+    const request = (currentUser.friendRequests || []).find((r) => r.id === requestId);
+    if (!request) return;
+
+    const fromAccount =
+      accounts.find((a) => a.id === request.fromUserId) ||
+      SAMPLE_ACCOUNTS.find((a) => a.id === request.fromUserId);
+
+    patchCurrent((account) => ({
+      ...account,
+      friendRequests: (account.friendRequests || []).filter((r) => r.id !== requestId),
+      notifications: (account.notifications || []).map((n) =>
+        n.requestId === requestId ? { ...n, read: true } : n,
+      ),
+      friends: fromAccount
+        ? [
+            ...account.friends.filter((f) => f.id !== fromAccount.id),
+            sampleAccountToFriend(fromAccount),
+          ]
+        : account.friends,
+    }));
+  };
+
+  const rejectFriendRequest = (requestId: string) => {
+    patchCurrent((account) => ({
+      ...account,
+      friendRequests: (account.friendRequests || []).filter((r) => r.id !== requestId),
+      notifications: (account.notifications || []).filter((n) => n.requestId !== requestId),
+    }));
+  };
+
+  const markNotificationsRead = () => {
+    patchCurrent((account) => ({
+      ...account,
+      notifications: (account.notifications || []).map((n) => ({ ...n, read: true })),
+    }));
+  };
+
   const setProfileName = (name: string) =>
     patchCurrent((account) => ({ ...account, name: name.trim() || account.name }));
 
@@ -216,11 +321,40 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
     [currentUser],
   );
 
+  const friendRequests = isLoggedIn ? currentUser.friendRequests || [] : [];
+  const notifications = useMemo(() => {
+    if (!isLoggedIn) return [] as AppNotification[];
+    const stored = currentUser.notifications || [];
+    const fromFriends: AppNotification[] = (currentUser.friends || [])
+      .filter((f) => f.activity)
+      .map((f) => ({
+        id: `act_${f.id}_${f.activityAt || f.activity}`,
+        type: 'friend_activity' as const,
+        title: `Actividad de ${f.name}`,
+        body: f.activity || '',
+        at: Date.now() - 3_600_000,
+        read: stored.some((n) => n.id === `act_${f.id}_${f.activityAt || f.activity}` && n.read),
+        fromUserId: f.id,
+      }));
+    const merged = [...stored];
+    for (const note of fromFriends) {
+      if (!merged.some((n) => n.id === note.id || (n.type === 'friend_activity' && n.fromUserId === note.fromUserId && n.body === note.body))) {
+        merged.push(note);
+      }
+    }
+    return merged.sort((a, b) => b.at - a.at);
+  }, [isLoggedIn, currentUser]);
+
+  const unreadNotifications = notifications.filter((n) => !n.read).length;
+
   return (
     <LibraryContext.Provider
       value={{
         works: isLoggedIn ? currentUser.works : [],
         friends: isLoggedIn ? currentUser.friends : [],
+        friendRequests,
+        notifications,
+        unreadNotifications,
         profileName: currentUser.name,
         profileHandle: currentUser.handle,
         profileBio: currentUser.bio,
@@ -234,6 +368,10 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
         addFriend,
         removeFriend,
         addSuggestedFriend,
+        sendFriendRequest,
+        acceptFriendRequest,
+        rejectFriendRequest,
+        markNotificationsRead,
         setProfileName,
         setProfileHandle,
         setProfileBio,
