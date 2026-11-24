@@ -24,7 +24,6 @@ export default function Header() {
           </Link>
 
           <div className="flex-1 max-w-md lg:max-w-xl xl:max-w-2xl">
-            <p className="label-mono text-[var(--text-secondary)] mb-1">Buscar</p>
             <SearchBox variant="default" />
           </div>
         </div>
