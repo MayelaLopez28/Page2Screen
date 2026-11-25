@@ -21,6 +21,7 @@ type DetailView = {
   creator: string;
   year: string;
   coverUrl?: string;
+  coverFallbacks?: string[];
   synopsis: string;
   genres: string[];
   average: string;
@@ -74,6 +75,7 @@ export default function WorkDetailPage() {
         creator: detail.creator,
         year: formatYear(detail.year),
         coverUrl: detail.coverUrl,
+        coverFallbacks: detail.coverFallbacks,
         genres: detail.genreIds.length ? detail.genreIds : detail.genres,
         status: localWork?.status || 'pending',
         addedAt: localWork?.addedAt || 0,
@@ -148,6 +150,9 @@ export default function WorkDetailPage() {
               (book.covers?.[0]
                 ? `https://covers.openlibrary.org/b/id/${book.covers[0]}-L.jpg`
                 : undefined),
+            coverFallbacks: Array.isArray(book.coverFallbacks)
+              ? book.coverFallbacks
+              : undefined,
             synopsis:
               typeof book.description === 'string'
                 ? book.description.replace(/<[^>]+>/g, ' ')
@@ -280,6 +285,38 @@ export default function WorkDetailPage() {
       addedAt: Date.now(),
     });
     setToastMsg(`✓ ${detail.title} guardada en tus pendientes`);
+    setShowToast(true);
+  };
+
+  /** Marca DNF en un clic, sin abrir el formulario de reseña. */
+  const handleMarkDnf = () => {
+    if (!isLoggedIn) {
+      requireSession('¿Quieres marcar esta obra como “lo dejé”? Inicia sesión o crea una cuenta.');
+      return;
+    }
+    const now = Date.now();
+    if (localWork) {
+      updateWork(localWork.id, {
+        status: 'dnf',
+        consumptionDates: localWork.consumptionDates?.length
+          ? localWork.consumptionDates
+          : [localWork.addedAt || now],
+      });
+    } else {
+      addWork({
+        id: workId,
+        type: detail.type,
+        title: detail.title,
+        creator: detail.creator,
+        year: formatYear(detail.year),
+        coverUrl: detail.coverUrl,
+        genres: detail.genreIds.length ? detail.genreIds : detail.genres,
+        status: 'dnf',
+        consumptionDates: [now],
+        addedAt: now,
+      });
+    }
+    setToastMsg(`✓ ${detail.title} marcada como lo dejé (DNF)`);
     setShowToast(true);
   };
 
@@ -419,6 +456,7 @@ export default function WorkDetailPage() {
         <div className="detail-cover cover-spine">
           <CoverImage
             src={detail.coverUrl}
+            fallbacks={detail.coverFallbacks}
             title={detail.title}
             creator={detail.creator}
             type={detail.type}
@@ -559,6 +597,13 @@ export default function WorkDetailPage() {
                 >
                   Marcar como {isBook ? 'leída' : 'vista'}
                 </button>
+                <button
+                  type="button"
+                  onClick={handleMarkDnf}
+                  className="btn-outline min-h-11 px-5 shrink-0"
+                >
+                  Lo dejé
+                </button>
               </div>
             ) : localWork?.status === 'dnf' ? (
               <div className="flex flex-row flex-wrap items-center gap-3">
@@ -593,6 +638,13 @@ export default function WorkDetailPage() {
                   className="btn-outline min-h-11 px-5 shrink-0"
                 >
                   {isBook ? 'Por leer' : 'Por ver'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMarkDnf}
+                  className="btn-outline min-h-11 px-5 shrink-0"
+                >
+                  Lo dejé
                 </button>
               </div>
             )}

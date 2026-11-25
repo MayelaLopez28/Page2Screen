@@ -251,10 +251,19 @@ export const CATALOG_BOOKS: CatalogBook[] = [
     creator: 'George Orwell',
     year: '1949',
     isbn: '9780451524935',
-    coverUrl: coverOl(8745958),
-    coverFallbacks: [coverGb('ji4rzgEACAAJ')],
+    coverUrl: coverOl(9255566),
+    coverFallbacks: [
+      coverOl(7222246),
+      'https://covers.openlibrary.org/b/isbn/9780141036144-L.jpg',
+      'https://covers.openlibrary.org/b/isbn/9780451524935-L.jpg',
+      coverGb('ji4rzgEACAAJ'),
+      coverGb('kotPYEqx7kMC'),
+    ],
+    aliases: ['Nineteen Eighty-Four', 'Nineteen Eighty Four', '1984 Orwell'],
     genres: ['science_fiction', 'drama', 'literary_fiction'],
     rating: 4.6,
+    synopsis:
+      'En un Londres totalitario, Winston Smith trabaja reescribiendo la historia para el Partido. Vigilado por el Gran Hermano, intenta recuperar la libertad de pensar —y pagar el precio.',
   },
   {
     id: 'b_isbn_9780743273565',

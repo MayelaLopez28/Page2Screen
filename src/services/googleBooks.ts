@@ -253,6 +253,7 @@ export async function getTrendingBooks() {
     creator: b.creator,
     year: b.year,
     coverUrl: b.coverUrl,
+    coverFallbacks: b.coverFallbacks,
     genres: b.genres || ['fiction'],
     rating: b.rating ?? 4.4,
     author_name: [b.creator],
@@ -334,6 +335,7 @@ export async function getBookDetails(id: string) {
             subjects: info.categories || catalog.genres,
             authors: [{ name: catalog.creator }],
             coverUrl: catalog.coverUrl,
+            coverFallbacks: catalog.coverFallbacks,
             creator: catalog.creator,
             averageRating: info.averageRating || catalog.rating,
             ratingsCount: info.ratingsCount,
@@ -355,6 +357,7 @@ export async function getBookDetails(id: string) {
       subjects: catalog.genres,
       authors: [{ name: catalog.creator }],
       coverUrl: catalog.coverUrl,
+      coverFallbacks: catalog.coverFallbacks,
       creator: catalog.creator,
       averageRating: catalog.rating,
     };

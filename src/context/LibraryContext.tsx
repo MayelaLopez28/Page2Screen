@@ -32,11 +32,17 @@ interface LibraryState {
   addFriend: (friend: Friend) => void;
   removeFriend: (id: string) => void;
   addSuggestedFriend: (accountId: string) => void;
-  /** Envía solicitud a una cuenta demo (queda como notificación en el destino). */
+  /** Envía solicitud; el destino la ve en Notificaciones. Al aceptar, ambos quedan como amigos. */
   sendFriendRequest: (accountId: string) => string | null;
   acceptFriendRequest: (requestId: string) => void;
   rejectFriendRequest: (requestId: string) => void;
   markNotificationsRead: () => void;
+  /** Borra notificaciones de actividad al verlas; deja solicitudes pendientes. */
+  clearViewedNotifications: () => void;
+  removeNotification: (id: string) => void;
+  /** Perfil público de una cuenta (amigo u otra demo). */
+  getAccountProfile: (userId: string) => UserAccount | null;
+  hasOutgoingRequestTo: (accountId: string) => boolean;
   setProfileName: (name: string) => void;
   setProfileHandle: (handle: string) => void;
   setProfileBio: (bio: string) => void;
@@ -179,6 +185,15 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       return 'Esa persona ya está en tu círculo.';
     }
 
+    const alreadyPending = accounts.some(
+      (a) =>
+        a.id === target.id &&
+        (a.friendRequests || []).some((r) => r.fromUserId === currentUserId),
+    );
+    if (alreadyPending) {
+      return 'Ya enviaste una solicitud a esa persona. Espera a que la acepte.';
+    }
+
     const requestId = `req_${currentUserId}_${target.id}_${Date.now()}`;
     const request: FriendRequest = {
       id: requestId,
@@ -201,10 +216,6 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
     setAccounts((prev) =>
       prev.map((account) => {
         if (account.id !== target.id) return account;
-        const already = (account.friendRequests || []).some(
-          (r) => r.fromUserId === currentUserId,
-        );
-        if (already) return account;
         return pushNotification(
           {
             ...account,
@@ -225,19 +236,47 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       accounts.find((a) => a.id === request.fromUserId) ||
       SAMPLE_ACCOUNTS.find((a) => a.id === request.fromUserId);
 
-    patchCurrent((account) => ({
-      ...account,
-      friendRequests: (account.friendRequests || []).filter((r) => r.id !== requestId),
-      notifications: (account.notifications || []).map((n) =>
-        n.requestId === requestId ? { ...n, read: true } : n,
-      ),
-      friends: fromAccount
-        ? [
-            ...account.friends.filter((f) => f.id !== fromAccount.id),
-            sampleAccountToFriend(fromAccount),
-          ]
-        : account.friends,
-    }));
+    const accepterAsFriend = sampleAccountToFriend(currentUser);
+    const acceptedNote: AppNotification = {
+      id: `n_accepted_${requestId}`,
+      type: 'friend_activity',
+      title: 'Solicitud aceptada',
+      body: `${currentUser.name} (@${currentUser.handle}) aceptó tu solicitud. Ya está en tu círculo.`,
+      at: Date.now(),
+      read: false,
+      fromUserId: currentUserId,
+    };
+
+    setAccounts((prev) =>
+      prev.map((account) => {
+        if (account.id === currentUserId) {
+          return {
+            ...account,
+            friendRequests: (account.friendRequests || []).filter((r) => r.id !== requestId),
+            notifications: (account.notifications || []).filter((n) => n.requestId !== requestId),
+            friends: fromAccount
+              ? [
+                  ...account.friends.filter((f) => f.id !== fromAccount.id),
+                  sampleAccountToFriend(fromAccount),
+                ]
+              : account.friends,
+          };
+        }
+
+        if (fromAccount && account.id === fromAccount.id) {
+          const withFriend = {
+            ...account,
+            friends: [
+              ...account.friends.filter((f) => f.id !== currentUserId),
+              accepterAsFriend,
+            ],
+          };
+          return pushNotification(withFriend, acceptedNote);
+        }
+
+        return account;
+      }),
+    );
   };
 
   const rejectFriendRequest = (requestId: string) => {
@@ -253,6 +292,51 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       ...account,
       notifications: (account.notifications || []).map((n) => ({ ...n, read: true })),
     }));
+  };
+
+  const clearViewedNotifications = () => {
+    patchCurrent((account) => {
+      const pendingRequestIds = new Set((account.friendRequests || []).map((r) => r.id));
+      return {
+        ...account,
+        notifications: (account.notifications || []).filter((n) => {
+          // Conserva solicitudes aún pendientes
+          if (
+            n.type === 'friend_request' &&
+            n.requestId &&
+            pendingRequestIds.has(n.requestId)
+          ) {
+            return true;
+          }
+          // Conserva actividad aún no leída (para poder verla en esta visita)
+          if (n.type === 'friend_activity' && !n.read) {
+            return true;
+          }
+          // Borra actividad ya leída (vista en una visita anterior)
+          return false;
+        }),
+      };
+    });
+  };
+
+  const removeNotification = (id: string) => {
+    patchCurrent((account) => ({
+      ...account,
+      notifications: (account.notifications || []).filter((n) => n.id !== id),
+    }));
+  };
+
+  const getAccountProfile = (userId: string): UserAccount | null => {
+    const found =
+      accounts.find((a) => a.id === userId) ||
+      SAMPLE_ACCOUNTS.find((a) => a.id === userId);
+    return found || null;
+  };
+
+  const hasOutgoingRequestTo = (accountId: string): boolean => {
+    const target = accounts.find((a) => a.id === accountId);
+    if (!target) return false;
+    return (target.friendRequests || []).some((r) => r.fromUserId === currentUserId);
   };
 
   const setProfileName = (name: string) =>
@@ -316,33 +400,25 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
     setIsLoggedIn(false);
   };
 
-  const friendSuggestions = useMemo(
-    () => getSampleSuggestions(currentUser.id, currentUser.friends),
-    [currentUser],
-  );
+  const friendSuggestions = useMemo(() => {
+    const incomingFrom = new Set(
+      (currentUser.friendRequests || []).map((r) => r.fromUserId),
+    );
+    const base = getSampleSuggestions(currentUser.id, currentUser.friends);
+    return base.filter((account) => {
+      if (incomingFrom.has(account.id)) return false;
+      const live = accounts.find((a) => a.id === account.id);
+      const livePending = (live?.friendRequests || []).some(
+        (r) => r.fromUserId === currentUser.id,
+      );
+      return !livePending;
+    });
+  }, [currentUser, accounts]);
 
   const friendRequests = isLoggedIn ? currentUser.friendRequests || [] : [];
   const notifications = useMemo(() => {
     if (!isLoggedIn) return [] as AppNotification[];
-    const stored = currentUser.notifications || [];
-    const fromFriends: AppNotification[] = (currentUser.friends || [])
-      .filter((f) => f.activity)
-      .map((f) => ({
-        id: `act_${f.id}_${f.activityAt || f.activity}`,
-        type: 'friend_activity' as const,
-        title: `Actividad de ${f.name}`,
-        body: f.activity || '',
-        at: Date.now() - 3_600_000,
-        read: stored.some((n) => n.id === `act_${f.id}_${f.activityAt || f.activity}` && n.read),
-        fromUserId: f.id,
-      }));
-    const merged = [...stored];
-    for (const note of fromFriends) {
-      if (!merged.some((n) => n.id === note.id || (n.type === 'friend_activity' && n.fromUserId === note.fromUserId && n.body === note.body))) {
-        merged.push(note);
-      }
-    }
-    return merged.sort((a, b) => b.at - a.at);
+    return [...(currentUser.notifications || [])].sort((a, b) => b.at - a.at);
   }, [isLoggedIn, currentUser]);
 
   const unreadNotifications = notifications.filter((n) => !n.read).length;
@@ -372,6 +448,10 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
         acceptFriendRequest,
         rejectFriendRequest,
         markNotificationsRead,
+        clearViewedNotifications,
+        removeNotification,
+        getAccountProfile,
+        hasOutgoingRequestTo,
         setProfileName,
         setProfileHandle,
         setProfileBio,

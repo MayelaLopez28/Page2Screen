@@ -17,7 +17,9 @@ export default function DocumentTitle() {
   useEffect(() => {
     let page = ROUTE_TITLES[pathname];
 
-    if (!page && pathname.startsWith('/obra/libro')) {
+    if (!page && pathname.startsWith('/amigo/')) {
+      page = 'Perfil de amigo';
+    } else if (!page && pathname.startsWith('/obra/libro')) {
       page = 'Ficha · Libro';
     } else if (!page && pathname.startsWith('/obra/pelicula')) {
       page = 'Ficha · Película';

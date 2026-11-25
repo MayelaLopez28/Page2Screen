@@ -29,9 +29,9 @@ export default function ProfilePage() {
     setProfileName,
     setProfileHandle,
     setProfileBio,
-    addFriend,
     removeFriend,
-    addSuggestedFriend,
+    sendFriendRequest,
+    hasOutgoingRequestTo,
     logout,
   } = useLibrary();
   const navigate = useNavigate();
@@ -58,10 +58,12 @@ export default function ProfilePage() {
   const moviesDone = works.filter((w) => w.type === 'movie' && w.status === 'done');
   const dnf = works.filter((w) => w.status === 'dnf');
   const historyWorks = useMemo(() => {
-    return [...booksDone, ...moviesDone].sort(
-      (a, b) => (b.addedAt || 0) - (a.addedAt || 0),
-    );
-  }, [booksDone, moviesDone]);
+    const latestTs = (w: Work) => {
+      const dates = w.consumptionDates?.length ? w.consumptionDates : [w.addedAt || 0];
+      return Math.max(...dates);
+    };
+    return [...booksDone, ...moviesDone, ...dnf].sort((a, b) => latestTs(b) - latestTs(a));
+  }, [booksDone, moviesDone, dnf]);
   const selectedHistory: Work | null =
     historyWorks.find((w) => w.id === selectedHistoryId) || null;
 
@@ -158,7 +160,7 @@ export default function ProfilePage() {
     const friend = resolveFriendFromQuery(friendQuery);
 
     if (!friend) {
-      setErrorMsg('No encontramos ese usuario. Prueba @mayelalopez o un código de perfil.');
+      setErrorMsg('No encontramos ese usuario. Prueba @andrealopez o @reginasosa.');
       return;
     }
 
@@ -167,9 +169,18 @@ export default function ProfilePage() {
       return;
     }
 
-    addFriend(friend);
+    if (hasOutgoingRequestTo(friend.id)) {
+      setErrorMsg('Ya enviaste una solicitud. Espera a que la acepte.');
+      return;
+    }
+
+    const err = sendFriendRequest(friend.id);
+    if (err) {
+      setErrorMsg(err);
+      return;
+    }
     setFriendQuery('');
-    setToastMsg(`${friend.name} se añadió a tu círculo`);
+    setToastMsg(`Solicitud enviada a ${friend.name}`);
   };
 
   const copyInvite = async () => {
@@ -292,17 +303,23 @@ export default function ProfilePage() {
           <div className="space-y-0 border-y border-[var(--border-color)]">
             {historyWorks.length === 0 ? (
               <p className="py-8 font-mono text-sm text-[var(--text-secondary)]">
-                Aún no has registrado libros leídos ni películas vistas.
+                Aún no hay historial: leídos, vistas o obras que dejaste (DNF).
               </p>
             ) : (
               historyWorks.map((work) => {
                 const active = selectedHistoryId === work.id;
                 const isBook = work.type === 'book';
+                const isDnf = work.status === 'dnf';
                 const dates = (
                   work.consumptionDates?.length ? work.consumptionDates : [work.addedAt]
                 )
                   .slice()
                   .sort((a, b) => b - a);
+                const statusLabel = isDnf
+                  ? 'Lo dejé (DNF)'
+                  : isBook
+                    ? 'Libro leído'
+                    : 'Película vista';
 
                 return (
                   <div
@@ -332,13 +349,19 @@ export default function ProfilePage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="label-mono text-[var(--text-secondary)] text-[0.65rem] mb-1">
-                          {isBook ? 'Libro leído' : 'Película vista'}
+                          {isDnf
+                            ? `${statusLabel} · ${isBook ? 'Libro' : 'Película'}`
+                            : statusLabel}
                         </p>
                         <p className="font-heading text-base sm:text-lg leading-snug line-clamp-2">
                           {work.title}
                         </p>
                         <p className="text-xs font-mono text-[var(--text-secondary)] mt-1 truncate">
                           {work.creator}
+                          {typeof work.rating === 'number' && work.rating > 0
+                            ? ` · ${work.rating.toFixed(1)}★`
+                            : ''}
+                          {work.notes ? ' · con reseña' : ''}
                         </p>
                       </div>
                     </button>
@@ -406,7 +429,11 @@ export default function ProfilePage() {
                   </div>
                   <div className="min-w-0">
                     <p className="label-mono text-[var(--text-secondary)] mb-1">
-                      {selectedHistory.type === 'book' ? 'Libro' : 'Película'}
+                      {selectedHistory.status === 'dnf'
+                        ? `Lo dejé (DNF) · ${selectedHistory.type === 'book' ? 'Libro' : 'Película'}`
+                        : selectedHistory.type === 'book'
+                          ? 'Libro leído'
+                          : 'Película vista'}
                     </p>
                     <h3 className="font-heading text-xl leading-snug">{selectedHistory.title}</h3>
                     <p className="text-sm font-mono text-[var(--text-secondary)] mt-1">
@@ -523,21 +550,28 @@ export default function ProfilePage() {
                       <div className="w-10 h-10 rounded-full border border-[var(--border-color)] font-heading text-sm flex items-center justify-center shrink-0">
                         {initialsSug}
                       </div>
-                      <div className="min-w-0 flex-1">
+                      <Link
+                        to={`/amigo/${suggestion.id}`}
+                        className="min-w-0 flex-1 hover:opacity-80 transition-opacity"
+                      >
                         <p className="font-heading text-sm truncate">{suggestion.name}</p>
                         <p className="text-xs text-[var(--text-secondary)] font-mono truncate">
                           @{suggestion.handle} · {suggestion.works.length} obras
                         </p>
-                      </div>
+                      </Link>
                       <button
                         type="button"
                         onClick={() => {
-                          addSuggestedFriend(suggestion.id);
-                          setToastMsg(`${suggestion.name} se añadió a tu círculo`);
+                          const err = sendFriendRequest(suggestion.id);
+                          if (err) {
+                            setErrorMsg(err);
+                            return;
+                          }
+                          setToastMsg(`Solicitud enviada a ${suggestion.name}`);
                         }}
                         className="btn-outline !px-3 !py-1.5 shrink-0"
                       >
-                        Seguir
+                        Solicitar
                       </button>
                     </div>
                   );
@@ -589,23 +623,29 @@ export default function ProfilePage() {
                     key={friend.id}
                     className="flex items-center gap-4 py-4 border-b border-[var(--border-color)]"
                   >
-                    <div className="w-11 h-11 rounded-full border border-[var(--border-color)] font-heading flex items-center justify-center shrink-0">
-                      {friendInitials}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-heading text-sm truncate">
-                        {friend.name}{' '}
-                        <span className="text-[var(--text-secondary)] font-mono font-normal text-xs">
-                          @{friend.handle || friend.name.toLowerCase().replace(/\s+/g, '')}
-                        </span>
-                      </p>
-                      <p className="text-sm text-[var(--text-secondary)] font-mono truncate">
-                        {friend.activity ||
-                          (friend.recentWorks[0]
-                            ? `Reciente: ${friend.recentWorks[0].title}`
-                            : 'Sin actividad')}
-                      </p>
-                    </div>
+                    <Link
+                      to={`/amigo/${friend.id}`}
+                      className="flex items-center gap-4 min-w-0 flex-1 hover:opacity-80 transition-opacity"
+                      aria-label={`Ver perfil de ${friend.name}`}
+                    >
+                      <div className="w-11 h-11 rounded-full border border-[var(--border-color)] font-heading flex items-center justify-center shrink-0">
+                        {friendInitials}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-heading text-sm truncate">
+                          {friend.name}{' '}
+                          <span className="text-[var(--text-secondary)] font-mono font-normal text-xs">
+                            @{friend.handle || friend.name.toLowerCase().replace(/\s+/g, '')}
+                          </span>
+                        </p>
+                        <p className="text-sm text-[var(--text-secondary)] font-mono truncate">
+                          {friend.activity ||
+                            (friend.recentWorks[0]
+                              ? `Reciente: ${friend.recentWorks[0].title}`
+                              : 'Sin actividad')}
+                        </p>
+                      </div>
+                    </Link>
                     <button
                       type="button"
                       onClick={() => removeFriend(friend.id)}

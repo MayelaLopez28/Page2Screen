@@ -88,7 +88,7 @@ export default function ExplorePage() {
               creator: b.creator || b.author_name?.[0] || 'Autor Desconocido',
               year: b.year?.toString?.() || b.first_publish_year?.toString() || '2024',
               coverUrl: catalog?.coverUrl || b.coverUrl,
-              coverFallbacks: catalog?.coverFallbacks,
+              coverFallbacks: catalog?.coverFallbacks || b.coverFallbacks,
               genres: b.genres?.length ? b.genres : catalog?.genres || ['fiction'],
               status: 'pending' as const,
               rating: typeof b.rating === 'number' ? b.rating : catalog?.rating ?? 4.4,
