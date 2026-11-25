@@ -274,6 +274,7 @@ export async function getTrendingBooks() {
             creator: book.creator,
             year: book.year,
             coverUrl: book.coverUrl,
+            coverFallbacks: book.coverFallbacks,
             genres: book.genres || ['fiction'],
             rating: 4.2,
             author_name: [book.creator],

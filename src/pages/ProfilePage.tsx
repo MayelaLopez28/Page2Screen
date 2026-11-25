@@ -624,7 +624,7 @@ export default function ProfilePage() {
                     className="flex items-center gap-4 py-4 border-b border-[var(--border-color)]"
                   >
                     <Link
-                      to={`/amigo/${friend.id}`}
+                      to={`/amigo/${encodeURIComponent(friend.id)}`}
                       className="flex items-center gap-4 min-w-0 flex-1 hover:opacity-80 transition-opacity"
                       aria-label={`Ver perfil de ${friend.name}`}
                     >

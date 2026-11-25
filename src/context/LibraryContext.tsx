@@ -327,9 +327,14 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getAccountProfile = (userId: string): UserAccount | null => {
+    const needle = userId.trim().replace(/^@/, '').toLowerCase();
     const found =
-      accounts.find((a) => a.id === userId) ||
-      SAMPLE_ACCOUNTS.find((a) => a.id === userId);
+      accounts.find(
+        (a) => a.id === userId || a.handle.toLowerCase() === needle || a.id.toLowerCase() === needle,
+      ) ||
+      SAMPLE_ACCOUNTS.find(
+        (a) => a.id === userId || a.handle.toLowerCase() === needle || a.id.toLowerCase() === needle,
+      );
     return found || null;
   };
 
